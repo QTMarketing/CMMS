@@ -1,0 +1,77 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Asset {
+  id                  String                @id
+  name                String
+  location            String
+  status              String                // "Active" | "Down" | "Retired"
+  lastMaintenanceDate DateTime?
+  nextMaintenanceDate DateTime?
+
+  workOrders          WorkOrder[]
+  schedules           PreventiveSchedule[]
+}
+
+model Technician {
+  id        String      @id
+  name      String
+  email     String
+  phone     String?
+  active    Boolean      @default(true)
+
+  workOrders WorkOrder[] @relation("TechnicianWorkOrders")
+}
+
+model WorkOrder {
+  id           String       @id
+  title        String
+  description  String?
+  priority     String       // "Low" | "Medium" | "High"
+  status       String       // "Open" | "In Progress" | "Completed" | "Cancelled"
+  createdAt    DateTime     @default(now())
+  dueDate      DateTime?
+  completedAt  DateTime?
+
+  assetId      String
+  asset        Asset        @relation(fields: [assetId], references: [id])
+
+  assignedToId String?
+  assignedTo   Technician?  @relation("TechnicianWorkOrders", fields: [assignedToId], references: [id])
+
+  notes        Note[]
+}
+
+model Note {
+  id          Int       @id @default(autoincrement())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  timestamp   DateTime  @default(now())
+  author      String
+  text        String
+}
+
+model InventoryItem {
+  id               String  @id
+  name             String
+  partNumber       String
+  quantityOnHand   Int
+  reorderThreshold Int
+  location         String?
+}
+
+model PreventiveSchedule {
+  id            String   @id
+  title         String
+  assetId       String
+  asset         Asset    @relation(fields: [assetId], references: [id])
+  frequencyDays Int
+  nextDueDate   DateTime
+  active        Boolean  @default(true)
+}
