@@ -9,6 +9,11 @@ export default function WorkOrderDetails({
   asset?: any;
   technicianMap?: Record<string, string>;
 }) {
+  const title: string = workOrder.title ?? "";
+  const isPm = title.startsWith("PM:");
+  const isRequest = title.startsWith("Request:");
+  const isManual = !isPm && !isRequest;
+
   // Resolve assigned technician name
   const assignedToName =
     (workOrder.assignedTo?.name ||
@@ -59,9 +64,24 @@ export default function WorkOrderDetails({
       {/* Header + Edit button */}
       <div className="flex justify-between items-start mb-3">
         <div>
-          <div className="font-bold text-base md:text-lg">
+          <h1 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
             {workOrder.title}
-          </div>
+            {isPm && (
+              <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                Preventive Maintenance
+              </span>
+            )}
+            {isRequest && (
+              <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                From Request
+              </span>
+            )}
+            {isManual && (
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                Manual
+              </span>
+            )}
+          </h1>
           <div className="text-xs text-gray-400 mt-1">
             Work Order ID: {workOrder.id}
           </div>

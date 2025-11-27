@@ -1,8 +1,9 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import React from "react";
-import { signOut } from "next-auth/react";
+import React, { useEffect, useState } from "react";
+import { signOut, useSession } from "next-auth/react";
+import { useTheme } from "next-themes";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -26,6 +27,15 @@ export default function TopNavbar({
   user?: TopNavbarUser;
 }) {
   const pathname = usePathname();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  const { data: session } = useSession();
+  const sessionUser = (session?.user as TopNavbarUser) ?? null;
+  const effectiveUser = sessionUser ?? user;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const title =
     pageTitles[pathname] ||
     pageTitles[
@@ -34,14 +44,14 @@ export default function TopNavbar({
     "";
 
   const roleLabel =
-    user?.role === "ADMIN"
+    effectiveUser?.role === "ADMIN"
       ? "Admin"
-      : user?.role === "TECHNICIAN"
+      : effectiveUser?.role === "TECHNICIAN"
       ? "Technician"
       : undefined;
 
   return (
-    <header className="bg-white shadow h-12 sm:h-16 flex items-center px-2 sm:px-4 md:px-6 justify-between border-b border-gray-200 w-full">
+    <header className="bg-white dark:bg-slate-900 shadow h-12 sm:h-16 flex items-center px-2 sm:px-4 md:px-6 justify-between border-b border-gray-200 dark:border-slate-700 w-full">
       {/* Hamburger for mobile */}
       <button
         type="button"
@@ -59,15 +69,24 @@ export default function TopNavbar({
         {title}
       </span>
       <div className="flex items-center gap-2">
-        {user?.email && (
+        {effectiveUser?.email && (
           <div className="hidden sm:flex flex-col items-end mr-1">
-            <span className="text-xs text-gray-700">{user.email}</span>
+            <span className="text-xs text-gray-700">{effectiveUser.email}</span>
             {roleLabel && (
               <span className="text-[10px] mt-0.5 inline-flex px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium uppercase tracking-wide">
                 {roleLabel}
               </span>
             )}
           </div>
+        )}
+        {mounted && (
+          <button
+            type="button"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white border border-gray-200 dark:border-slate-600 rounded-full px-2 py-1"
+          >
+            {theme === "dark" ? "Light" : "Dark"}
+          </button>
         )}
         <button
           type="button"

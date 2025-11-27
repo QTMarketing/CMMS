@@ -2,8 +2,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
+import { useSession } from "next-auth/react";
 
-const navItems = [
+const baseNavItems = [
   { name: "Dashboard", href: "/" },
   { name: "Work Orders", href: "/workorders" },
   { name: "Assets", href: "/assets" },
@@ -11,8 +12,25 @@ const navItems = [
   { name: "Schedules", href: "/schedules" },
 ];
 
-export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: () => void }) {
+type SidebarUser = {
+  email?: string | null;
+  role?: string;
+  technicianId?: string | null;
+} | null | undefined;
+
+export default function Sidebar({
+  open,
+  onClose,
+  user,
+}: {
+  open?: boolean;
+  onClose?: () => void;
+  user?: SidebarUser;
+}) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const sessionUser = (session?.user as SidebarUser) ?? null;
+  const effectiveUser = sessionUser ?? user;
   // Detect small screen (tailwind's md: break) using matchMedia
   const [isMobile, setIsMobile] = React.useState(false);
   React.useEffect(() => {
@@ -25,6 +43,19 @@ export default function Sidebar({ open, onClose }: { open?: boolean; onClose?: (
 
   // Hide sidebar ONLY on mobile if not open, always show on desktop
   if (isMobile && !open) return null;
+
+  const navItems = React.useMemo(() => {
+    const items = [...baseNavItems];
+
+    if (effectiveUser) {
+      items.push({ name: "Submit Request", href: "/request" });
+      if (effectiveUser.role === "ADMIN") {
+        items.push({ name: "Requests", href: "/requests" });
+      }
+    }
+
+    return items;
+  }, [effectiveUser]);
 
   // Sidebar overlay for mobile
   return (

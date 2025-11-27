@@ -4,6 +4,7 @@ import { AppShell } from "../components/layout/AppShell";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import AppSessionProvider from "@/components/SessionProvider";
+import AppThemeProvider from "@/components/ThemeProvider";
 
 export default async function RootLayout({
   children,
@@ -16,14 +17,15 @@ export default async function RootLayout({
     | undefined;
 
   return (
-    <html lang="en">
-      <body className="bg-gray-100">
+    <html lang="en" suppressHydrationWarning>
+      <body className="bg-gray-100 dark:bg-slate-900">
         <AppSessionProvider session={session}>
-          {/* Pass minimal user info into the shell so it can show role/email and logout */}
-          <AppShell user={user}>{children}</AppShell>
+          <AppThemeProvider>
+            {/* Pass minimal user info into the shell so it can show role/email and logout */}
+            <AppShell user={user}>{children}</AppShell>
+          </AppThemeProvider>
         </AppSessionProvider>
       </body>
     </html>
   );
 }
-

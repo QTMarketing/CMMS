@@ -21,7 +21,11 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        user={user}
+      />
       <div className="flex-1 flex flex-col">
         <TopNavbar
           openSidebar={() => setSidebarOpen(true)}

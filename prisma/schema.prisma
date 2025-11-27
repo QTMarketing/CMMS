@@ -17,6 +17,7 @@ model Asset {
 
   workOrders          WorkOrder[]
   schedules           PreventiveSchedule[]
+  requests            Request[]
 }
 
 model Technician {
@@ -86,6 +87,18 @@ model User {
   technician   Technician? @relation("UserTechnician", fields: [technicianId], references: [id])
   accounts     Account[]
   sessions     Session[]
+}
+
+model Request {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  assetId     String?
+  asset       Asset?   @relation(fields: [assetId], references: [id])
+  priority    String
+  status      String
+  createdAt   DateTime @default(now())
+  createdBy   String?
 }
 
 // Auth.js / NextAuth supporting models

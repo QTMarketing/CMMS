@@ -337,46 +337,64 @@ export default function WorkOrdersPage() {
             </td>
           </tr>
         ) : (
-          visibleRows.map((w) => (
-            <tr
-              key={w.id}
-              className="hover:bg-gray-50 cursor-pointer transition"
-              onClick={() => setSelected(w)}
-            >
-              <td className="px-4 py-2 font-mono">{w.id}</td>
-              <td className="px-4 py-2 whitespace-nowrap">
-                {w.title}
-              </td>
-              <td className="px-4 py-2">
-                {assetMap[w.assetId]?.name || w.assetId}
-              </td>
-              <td className="px-4 py-2">
-                <Badge colorClass={priorityColors[w.priority]}>
-                  {w.priority}
-                </Badge>
-              </td>
-              <td className="px-4 py-2">
-                <Badge colorClass={statusColors[w.status]}>
-                  {w.status}
-                </Badge>
-              </td>
-              <td className="px-4 py-2">
-                {w.assignedToId
-                  ? techMap[w.assignedToId] || w.assignedToId
-                  : "—"}
-              </td>
-              <td className="px-4 py-2 whitespace-nowrap">
-                {formatDate(w.dueDate)}
-              </td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <ViewWorkOrderButton id={w.id} />
-                  <EditWorkOrderButton id={w.id} />
-                  {isAdmin && <DeleteWorkOrderButton id={w.id} />}
-                </div>
-              </td>
-            </tr>
-          ))
+          visibleRows.map((w) => {
+            const isPm = w.title?.startsWith("PM:");
+            const isRequest = w.title?.startsWith("Request:");
+            return (
+              <tr
+                key={w.id}
+                className="hover:bg-gray-50 cursor-pointer transition"
+                onClick={() => setSelected(w)}
+              >
+                <td className="px-4 py-2 font-mono">{w.id}</td>
+                <td className="px-4 py-2 whitespace-nowrap">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-gray-900">
+                      {w.title}
+                    </span>
+                    {isPm && (
+                      <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                        PM
+                      </span>
+                    )}
+                    {isRequest && (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        Request
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-2">
+                  {assetMap[w.assetId]?.name || w.assetId}
+                </td>
+                <td className="px-4 py-2">
+                  <Badge colorClass={priorityColors[w.priority]}>
+                    {w.priority}
+                  </Badge>
+                </td>
+                <td className="px-4 py-2">
+                  <Badge colorClass={statusColors[w.status]}>
+                    {w.status}
+                  </Badge>
+                </td>
+                <td className="px-4 py-2">
+                  {w.assignedToId
+                    ? techMap[w.assignedToId] || w.assignedToId
+                    : "—"}
+                </td>
+                <td className="px-4 py-2 whitespace-nowrap">
+                  {formatDate(w.dueDate)}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <ViewWorkOrderButton id={w.id} />
+                    <EditWorkOrderButton id={w.id} />
+                    {isAdmin && <DeleteWorkOrderButton id={w.id} />}
+                  </div>
+                </td>
+              </tr>
+            );
+          })
         )}
       </Table>
 
