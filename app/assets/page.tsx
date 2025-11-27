@@ -34,6 +34,7 @@ export default function AssetsPage() {
   const router = useRouter();
   const [assets, setAssets] = useState<any[]>([]);
   const [workOrders, setWorkOrders] = useState<any[]>([]);
+  const [pmSummaries, setPmSummaries] = useState<any[]>([]);
 
   useEffect(() => {
     fetch("/api/assets", { cache: "no-store" })
@@ -45,6 +46,13 @@ export default function AssetsPage() {
       .then((res) => res.json())
       .then((data) =>
         setWorkOrders(Array.isArray(data) ? data : data.data || [])
+      );
+
+    // Load preventive schedules so we can show a light PM status indicator per asset
+    fetch("/api/schedules", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) =>
+        setPmSummaries(Array.isArray(data) ? data : data.data || [])
       );
   }, []);
 
@@ -64,6 +72,38 @@ export default function AssetsPage() {
     countsByAsset[wo.assetId] = existing;
   }
 
+  // Build a quick PM status summary per asset using daysUntilDue / due flags from /api/schedules
+  const pmByAsset: Record<
+    string,
+    { hasPm: boolean; status: "on-track" | "due-soon" | "overdue" }
+  > = {};
+
+  for (const pm of pmSummaries as any[]) {
+    const assetId = pm.assetId;
+    if (!assetId) continue;
+
+    const current = pmByAsset[assetId] || {
+      hasPm: false,
+      status: "on-track" as const,
+    };
+
+    current.hasPm = true;
+
+    const daysUntilDue = pm.daysUntilDue;
+    const isDue = pm.due; // from API: true when daysUntilDue <= 0 and active
+
+    if (isDue) {
+      current.status = "overdue";
+    } else if (typeof daysUntilDue === "number" && daysUntilDue <= 7) {
+      // within a week
+      if (current.status !== "overdue") {
+        current.status = "due-soon";
+      }
+    }
+
+    pmByAsset[assetId] = current;
+  }
+
   const sorted = [...assets].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -79,17 +119,33 @@ export default function AssetsPage() {
           "Next Due (days)",
           "Total WOs",
           "Open WOs",
+          "PM",
         ]}
       >
         {sorted.length === 0 ? (
           <tr>
-            <td colSpan={9} className="py-6 text-center text-gray-400">
+            <td colSpan={10} className="py-6 text-center text-gray-400">
               No assets found.
             </td>
           </tr>
         ) : (
           sorted.map((a) => {
             const counts = countsByAsset[a.id] || { total: 0, open: 0 };
+            const pm = pmByAsset[a.id];
+            let pmLabel = "";
+            let pmClass = "";
+            if (pm?.hasPm) {
+              if (pm.status === "overdue") {
+                pmLabel = "PM Overdue";
+                pmClass = "bg-red-50 text-red-700";
+              } else if (pm.status === "due-soon") {
+                pmLabel = "PM Due";
+                pmClass = "bg-amber-50 text-amber-700";
+              } else {
+                pmLabel = "PM";
+                pmClass = "bg-gray-100 text-gray-600";
+              }
+            }
             return (
               <tr
                 key={a.id}
@@ -128,6 +184,15 @@ export default function AssetsPage() {
                 </td>
                 <td className="px-4 py-2">{counts.total}</td>
                 <td className="px-4 py-2">{counts.open}</td>
+                <td className="px-4 py-2">
+                  {pm && pmLabel && (
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${pmClass}`}
+                    >
+                      {pmLabel}
+                    </span>
+                  )}
+                </td>
               </tr>
             );
           })

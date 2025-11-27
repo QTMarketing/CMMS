@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -27,8 +29,39 @@ const statusColors: Record<string, string> = {
   Cancelled: "bg-gray-100 text-gray-600",
 };
 
+const pmStatusColors: Record<
+  "on-track" | "due-soon" | "overdue" | "inactive",
+  string
+> = {
+  "on-track": "bg-green-50 text-green-700",
+  "due-soon": "bg-amber-50 text-amber-700",
+  overdue: "bg-red-50 text-red-700",
+  inactive: "bg-gray-100 text-gray-600",
+};
+
+const PM_SOON_THRESHOLD_DAYS = 7;
+
+function getPmStatus(schedule: any): "on-track" | "due-soon" | "overdue" | "inactive" {
+  if (!schedule.active) return "inactive";
+  if (!schedule.nextDueDate) return "inactive";
+
+  const now = new Date();
+  const due = new Date(schedule.nextDueDate);
+  const diffMs = due.getTime() - now.getTime();
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  if (diffDays < 0) return "overdue";
+  if (diffDays <= PM_SOON_THRESHOLD_DAYS) return "due-soon";
+  return "on-track";
+}
+
 export default async function AssetHistoryPage({ params }: PageProps) {
   const { id } = await params;
+
+  // Derive role so we can conditionally show PM schedule data only to admins.
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as any)?.role;
+  const isAdmin = role === "ADMIN";
 
   const asset = await prisma.asset.findUnique({
     where: { id },
@@ -39,12 +72,17 @@ export default async function AssetHistoryPage({ params }: PageProps) {
     return notFound();
   }
 
-  // BUGFIX: ensure we fetch work orders by assetId (not by work order id
-  // or from in-memory data), so this list matches the counts shown on /assets.
+  // Work orders for this asset
   const workOrders = await prisma.workOrder.findMany({
     where: { assetId: id },
     include: { assignedTo: true },
     orderBy: { createdAt: "desc" },
+  });
+
+  // Preventive maintenance schedules for this asset
+  const pmSchedules = await prisma.preventiveSchedule.findMany({
+    where: { assetId: id },
+    orderBy: { nextDueDate: "asc" },
   });
 
   const total = workOrders.length;
@@ -100,6 +138,74 @@ export default async function AssetHistoryPage({ params }: PageProps) {
           </div>
         </div>
       </div>
+
+      {/* Preventive Maintenance section (ADMIN-only) */}
+      {isAdmin && (
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-medium text-gray-700 text-base md:text-lg">
+              Preventive Maintenance
+            </div>
+          </div>
+          {pmSchedules.length === 0 ? (
+            <div className="text-xs text-gray-400">
+              No preventive maintenance schedules are configured for this asset yet.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {pmSchedules.map((s) => {
+                const status = getPmStatus(s);
+                const statusLabel =
+                  status === "overdue"
+                    ? "Overdue"
+                    : status === "due-soon"
+                    ? "Due soon"
+                    : status === "on-track"
+                    ? "On track"
+                    : "Inactive";
+
+                return (
+                  <div
+                    key={s.id}
+                    className="border border-gray-100 rounded-lg px-3 py-2.5 flex flex-col gap-1 text-xs sm:text-sm"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-medium text-gray-800">
+                        <Link
+                          href={`/pm/${s.id}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {s.title}
+                        </Link>
+                      </div>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${pmStatusColors[status]}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-600">
+                      <div>
+                        <span className="font-medium">Frequency:</span>{" "}
+                        Every {s.frequencyDays} days
+                      </div>
+                      <div>
+                        <span className="font-medium">Next Due:</span>{" "}
+                        {formatDate(s.nextDueDate)}
+                      </div>
+                      <div>
+                        <span className="font-medium">Last Completed:</span>{" "}
+                        {/* No dedicated last-completed field yet; show placeholder */}
+                        —
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Work Order History */}
       <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm w-full overflow-x-auto px-2 sm:px-0">
@@ -188,5 +294,4 @@ export default async function AssetHistoryPage({ params }: PageProps) {
     </div>
   );
 }
-
 

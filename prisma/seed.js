@@ -1,4 +1,5 @@
 const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
 
 async function main() {
@@ -139,6 +140,43 @@ async function main() {
         timestamp: new Date("2025-11-22T12:15:00Z"),
       },
     ],
+  });
+
+  // 🔹 Ensure default seeded auth users for dev (ADMIN + TECHNICIAN)
+  // Hash passwords using bcryptjs so they work with NextAuth CredentialsProvider.
+  const adminPasswordHash = await bcrypt.hash("admin123", 10);
+  const techPasswordHash = await bcrypt.hash("tech123", 10);
+
+  // Admin user (no technician link)
+  await prisma.user.upsert({
+    where: { email: "admin@example.com" },
+    update: {
+      password: adminPasswordHash,
+      role: "ADMIN",
+      technicianId: null,
+    },
+    create: {
+      email: "admin@example.com",
+      password: adminPasswordHash,
+      role: "ADMIN",
+      technicianId: null,
+    },
+  });
+
+  // Technician user linked to an existing Technician row (here: tech1 / "David Johnson")
+  await prisma.user.upsert({
+    where: { email: "tech@example.com" },
+    update: {
+      password: techPasswordHash,
+      role: "TECHNICIAN",
+      technicianId: tech1.id,
+    },
+    create: {
+      email: "tech@example.com",
+      password: techPasswordHash,
+      role: "TECHNICIAN",
+      technicianId: tech1.id,
+    },
   });
 
   console.log("Seeding complete.");

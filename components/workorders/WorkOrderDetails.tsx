@@ -15,42 +15,44 @@ export default function WorkOrderDetails({
       (workOrder.assignedToId && technicianMap[workOrder.assignedToId]) ||
       workOrder.assignedToId) ?? "—";
 
-  type ActivityEvent = {
-    timestamp: Date;
-    label: string;
-    type: "created" | "completed" | "note";
-  };
+  // Unified activity timeline: created, completed, and notes
+  type ActivityItem =
+    | { type: "created"; timestamp: Date }
+    | { type: "completed"; timestamp: Date }
+    | { type: "note"; timestamp: Date; text: string; author?: string | null };
 
-  const events: ActivityEvent[] = [];
+  const activityItems: ActivityItem[] = [];
 
   if (workOrder.createdAt) {
-    events.push({
+    activityItems.push({
       type: "created",
       timestamp: new Date(workOrder.createdAt),
-      label: "Work order created",
     });
   }
 
   if (workOrder.completedAt) {
-    events.push({
+    activityItems.push({
       type: "completed",
       timestamp: new Date(workOrder.completedAt),
-      label: "Marked as completed",
     });
   }
 
   if (workOrder.notes && Array.isArray(workOrder.notes)) {
     for (const note of workOrder.notes) {
       if (!note.timestamp) continue;
-      events.push({
+      activityItems.push({
         type: "note",
         timestamp: new Date(note.timestamp),
-        label: `Note by ${note.author || "System"}: ${note.text}`,
+        text: note.text,
+        author: note.author ?? undefined,
       });
     }
   }
 
-  events.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  // Sort newest -> oldest for quick scanning
+  activityItems.sort(
+    (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+  );
 
   return (
     <div className="flex flex-col space-y-3 sm:gap-3 text-sm">
@@ -121,33 +123,71 @@ export default function WorkOrderDetails({
         </dd>
       </dl>
 
-      {/* Activity Log (replaces Notes) */}
+      {/* Activity timeline (replaces simple list) */}
       <div className="mt-8">
         <div className="font-medium text-gray-500 mb-2 text-base md:text-lg">
           Activity
         </div>
-        {events.length === 0 ? (
+        {activityItems.length === 0 ? (
           <div className="text-gray-300 text-xs">No activity yet.</div>
         ) : (
-          <div className="flex flex-col gap-3 mb-4">
-            {events.map((event, idx) => (
-              <div
-                key={idx}
-                className="bg-gray-50 border rounded px-3 py-2 text-xs sm:text-sm"
-              >
-                <div className="mb-1 text-xs text-gray-400 flex justify-between">
-                  <span>
-                    {event.type === "created"
-                      ? "System"
-                      : event.type === "completed"
-                      ? "System"
-                      : ""}
-                  </span>
-                  <span>{event.timestamp.toLocaleString()}</span>
+          <div className="flex flex-col gap-4 mb-4">
+            {activityItems.map((item, idx) => {
+              const isLast = idx === activityItems.length - 1;
+              const isNote = item.type === "note";
+              const authorLabel =
+                item.type === "note"
+                  ? (item.author ? `By ${item.author}` : "By System")
+                  : "System";
+
+              const title =
+                item.type === "created"
+                  ? "Work order created"
+                  : item.type === "completed"
+                  ? "Marked as completed"
+                  : "Note";
+
+              const body =
+                item.type === "note" ? item.text : undefined;
+
+              return (
+                <div key={idx} className="flex gap-3 text-xs sm:text-sm">
+                  {/* Timeline rail */}
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`h-2 w-2 rounded-full ${
+                        item.type === "note"
+                          ? "bg-gray-400"
+                          : "bg-blue-500"
+                      }`}
+                    />
+                    {!isLast && (
+                      <div className="flex-1 w-px bg-gray-200 mt-1" />
+                    )}
+                  </div>
+
+                  {/* Event content */}
+                  <div className="flex-1">
+                    <div className="flex justify-between gap-2 mb-0.5">
+                      <div className="font-medium text-gray-800">
+                        {title}
+                      </div>
+                      <div className="text-[11px] text-gray-400 whitespace-nowrap">
+                        {item.timestamp.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-gray-500 mb-0.5">
+                      {authorLabel}
+                    </div>
+                    {isNote && body && (
+                      <div className="mt-0.5 text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 border border-gray-100 rounded px-2 py-1">
+                        {body}
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div>{event.label}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

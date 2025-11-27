@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import Table from "../../components/ui/Table";
 import Badge from "../../components/ui/Badge";
+import AdminOnly from "@/components/auth/AdminOnly";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 type DateInput = Date | string | null | undefined;
@@ -28,6 +30,15 @@ export default function SchedulesPage() {
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
+  const { data: session, status } = useSession();
+  const isSessionLoading = status === "loading";
+  const rawRole = (session?.user as any)?.role;
+  const role = !isSessionLoading ? rawRole : undefined;
+  const technicianId = !isSessionLoading
+    ? (((session?.user as any)?.technicianId ?? null) as string | null)
+    : null;
+  const isAdmin = role === "ADMIN";
+
   async function fetchSchedules() {
     setLoading(true);
     try {
@@ -44,13 +55,16 @@ export default function SchedulesPage() {
   async function handleRun() {
     setRunning(true);
     try {
-      const res = await fetch("/api/schedules/generate", { method: "POST" });
+      const res = await fetch("/api/pm/generate-due", { method: "POST" });
       if (res.ok) {
         alert("Generated work orders for due schedules.");
         await fetchSchedules();
       } else {
         alert("Failed to generate work orders.");
       }
+    } catch (err) {
+      console.error("Error calling /api/pm/generate-due:", err);
+      alert("Failed to generate work orders.");
     } finally {
       setRunning(false);
     }
@@ -65,13 +79,15 @@ export default function SchedulesPage() {
     <div className="flex flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
       <div className="flex justify-between items-center mb-2">
         <h1 className="text-2xl font-bold">Preventive Maintenance Schedules</h1>
-        <button
-          onClick={handleRun}
-          disabled={running}
-          className="bg-orange-600 hover:bg-orange-500 text-white rounded-md px-4 py-2 text-sm font-medium disabled:bg-orange-300"
-        >
-          {running ? "Generating..." : "Generate Due Work Orders"}
-        </button>
+        <AdminOnly>
+          <button
+            onClick={handleRun}
+            disabled={running}
+            className="bg-orange-600 hover:bg-orange-500 text-white rounded-md px-4 py-2 text-sm font-medium disabled:bg-orange-300"
+          >
+            {running ? "Generating..." : "Generate Due Work Orders"}
+          </button>
+        </AdminOnly>
       </div>
       {error && <div className="text-red-500">{error}</div>}
       <Table

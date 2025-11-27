@@ -1,6 +1,9 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import Table from "../../components/ui/Table";
 import Badge from "../../components/ui/Badge";
 import Drawer from "../../components/ui/Drawer";
@@ -11,6 +14,7 @@ import { WorkOrder } from "../../lib/data/workOrders";
 import EditWorkOrderButton from "./EditWorkOrderButton";
 import ViewWorkOrderButton from "./ViewWorkOrderButton";
 import DeleteWorkOrderButton from "./DeleteWorkOrderButton";
+import AdminOnly from "@/components/auth/AdminOnly";
 
 // --- Type definitions for API objects ---
 interface Technician {
@@ -52,6 +56,20 @@ function formatDate(date: DateInput) {
 }
 
 export default function WorkOrdersPage() {
+  const { data: session, status: sessionStatus } = useSession();
+
+  // While the session is loading on the client, avoid making assumptions
+  // about the user's role. This prevents briefly treating an admin as a
+  // non-admin and ensures role-based UI (like buttons) appears reliably.
+  const isSessionLoading = sessionStatus === "loading";
+  const rawRole = (session?.user as any)?.role;
+  const role = !isSessionLoading ? rawRole : undefined;
+  const technicianId = !isSessionLoading
+    ? (((session?.user as any)?.technicianId ?? null) as string | null)
+    : null;
+  const isAdmin = role === "ADMIN";
+  const isTechnician = role === "TECHNICIAN";
+
   const [status, setStatus] =
     useState<(typeof statusOptions)[number]>("All");
   const [priority, setPriority] =
@@ -71,6 +89,9 @@ export default function WorkOrdersPage() {
 
   // 🔹 NEW: technician filter
   const [techFilter, setTechFilter] = useState<string>("all");
+  // 🔹 "My Tasks" mode (focus on a single technician's active work)
+  const [myTasksMode, setMyTasksMode] = useState(false);
+  const [myTasksInitialized, setMyTasksInitialized] = useState(false);
 
   // --------- Load data ---------
   useEffect(() => {
@@ -91,6 +112,16 @@ export default function WorkOrdersPage() {
       );
   }, []);
 
+  // For technicians, default My Tasks to ON (focus on active queue) once the
+  // role information is available. Admins keep My Tasks off by default.
+  useEffect(() => {
+    if (myTasksInitialized) return;
+    if (isTechnician) {
+      setMyTasksMode(true);
+    }
+    setMyTasksInitialized(true);
+  }, [isTechnician, myTasksInitialized]);
+
   const assetMap = Object.fromEntries(
     assets.map((a) => [a.id, a])
   ) as Record<string, Asset>;
@@ -101,15 +132,31 @@ export default function WorkOrdersPage() {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // --------- Filtering ---------
-  const filtered = tableOrders.filter((w) => {
-    let match = true;
+  // --------- Role-scoped base set + filtering ---------
+  // Start from all work orders returned by the API, then scope to the
+  // current user's role before applying any UI filters.
+  let visibleWorkOrders: WorkOrder[] = tableOrders;
 
-    // Tab filter
-    if (filter === "open") match = w.status === "Open";
-    else if (filter === "inProgress") match = w.status === "In Progress";
-    else if (filter === "completed") match = w.status === "Completed";
-    else if (filter === "overdue") {
+  // TECHNICIAN: can only ever see their own assigned work orders.
+  // ADMIN: sees all work orders.
+  if (isTechnician && technicianId) {
+    visibleWorkOrders = tableOrders.filter(
+      (w) => w.assignedToId === technicianId
+    );
+  }
+
+  // Apply filters on top of the role-scoped base set.
+  let rows: WorkOrder[] = [...visibleWorkOrders];
+
+  // Tab filter
+  if (filter === "open") {
+    rows = rows.filter((w) => w.status === "Open");
+  } else if (filter === "inProgress") {
+    rows = rows.filter((w) => w.status === "In Progress");
+  } else if (filter === "completed") {
+    rows = rows.filter((w) => w.status === "Completed");
+  } else if (filter === "overdue") {
+    rows = rows.filter((w) => {
       if (!w.dueDate) return false;
       const due = new Date(w.dueDate);
       const dueDay = new Date(
@@ -119,36 +166,49 @@ export default function WorkOrdersPage() {
       );
       const isCompleted =
         w.status === "Completed" || w.status === "Cancelled";
-      match = !isCompleted && dueDay < today;
-    }
+      return !isCompleted && dueDay < today;
+    });
+  }
 
-    // Status dropdown
-    if (status !== "All") match = match && w.status === status;
+  // Status dropdown
+  if (status !== "All") {
+    rows = rows.filter((w) => w.status === status);
+  }
 
-    // Priority dropdown
-    if (priority !== "All") match = match && w.priority === priority;
+  // Priority dropdown
+  if (priority !== "All") {
+    rows = rows.filter((w) => w.priority === priority);
+  }
 
-    // 🔹 Technician dropdown
-    if (techFilter !== "all") {
-      match = match && w.assignedToId === techFilter;
-    }
+  // Technician dropdown filter (ADMIN only)
+  if (isAdmin && techFilter !== "all") {
+    rows = rows.filter((w) => w.assignedToId === techFilter);
+  }
 
-    // Search by title or asset name
-    if (search.trim().length > 0) {
-      const searchLower = search.toLowerCase();
+  // Search by title or asset name
+  if (search.trim().length > 0) {
+    const searchLower = search.toLowerCase();
+    rows = rows.filter((w) => {
       const assetName =
         assetMap[w.assetId]?.name?.toLowerCase() || "";
-      match =
-        match &&
-        (w.title.toLowerCase().includes(searchLower) ||
-          assetName.includes(searchLower));
-    }
+      return (
+        w.title.toLowerCase().includes(searchLower) ||
+        assetName.includes(searchLower)
+      );
+    });
+  }
 
-    return match;
-  });
+  // When "My Tasks" is ON for a technician, further narrow to *active* tasks
+  // (exclude Completed / Cancelled). Admins are never implicitly restricted.
+  let visibleRows: WorkOrder[] = rows;
+  if (myTasksMode && isTechnician && technicianId) {
+    visibleRows = rows.filter(
+      (w) => w.status !== "Completed" && w.status !== "Cancelled"
+    );
+  }
 
   // Sort newest first
-  filtered.sort((a, b) => {
+  visibleRows.sort((a, b) => {
     const ad = a.createdAt ? new Date(a.createdAt) : new Date(0);
     const bd = b.createdAt ? new Date(b.createdAt) : new Date(0);
     return bd.getTime() - ad.getTime();
@@ -159,12 +219,14 @@ export default function WorkOrdersPage() {
       {/* Top Bar: Button right */}
       <div className="flex flex-row items-center mb-2">
         <div className="flex-1" />
-        <button
-          className="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700"
-          onClick={() => setShowCreate(true)}
-        >
-          New Work Order
-        </button>
+        <AdminOnly>
+          <button
+            className="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700"
+            onClick={() => setShowCreate(true)}
+          >
+            New Work Order
+          </button>
+        </AdminOnly>
       </div>
 
       {/* Filters row (Status, Priority, Technician, Search) */}
@@ -208,21 +270,38 @@ export default function WorkOrdersPage() {
         </div>
 
         {/* 🔹 Technician filter */}
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-600">Technician:</span>
-          <select
-            className="border rounded px-2 py-1"
-            value={techFilter}
-            onChange={(e) => setTechFilter(e.target.value)}
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-gray-600">Technician:</span>
+            <select
+              className="border rounded px-2 py-1"
+              value={techFilter}
+              onChange={(e) => setTechFilter(e.target.value)}
+            >
+              <option value="all">All</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* 🔹 My Tasks toggle (TECHNICIAN only) */}
+        {isTechnician && (
+          <button
+            type="button"
+            onClick={() => setMyTasksMode((prev) => !prev)}
+            className={`border rounded-full px-3 py-1 text-xs sm:text-sm transition ${
+              myTasksMode
+                ? "bg-blue-50 text-blue-700 border-blue-600"
+                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+            }`}
           >
-            <option value="all">All</option>
-            {technicians.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </div>
+            My Tasks
+          </button>
+        )}
 
         {/* Search */}
         <div className="flex-1 min-w-[200px] flex justify-end">
@@ -235,7 +314,6 @@ export default function WorkOrdersPage() {
           />
         </div>
       </div>
-
       {/* Table */}
       <Table
         headers={[
@@ -249,7 +327,7 @@ export default function WorkOrdersPage() {
           "Actions",
         ]}
       >
-        {filtered.length === 0 ? (
+        {visibleRows.length === 0 ? (
           <tr>
             <td
               colSpan={8}
@@ -259,7 +337,7 @@ export default function WorkOrdersPage() {
             </td>
           </tr>
         ) : (
-          filtered.map((w) => (
+          visibleRows.map((w) => (
             <tr
               key={w.id}
               className="hover:bg-gray-50 cursor-pointer transition"
@@ -294,7 +372,7 @@ export default function WorkOrdersPage() {
                 <div className="flex items-center gap-2">
                   <ViewWorkOrderButton id={w.id} />
                   <EditWorkOrderButton id={w.id} />
-                  <DeleteWorkOrderButton id={w.id} />
+                  {isAdmin && <DeleteWorkOrderButton id={w.id} />}
                 </div>
               </td>
             </tr>

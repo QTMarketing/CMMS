@@ -3,6 +3,9 @@ import KpiCard from "../components/dashboard/KpiCard";
 import WorkOrderTrendChart from "../components/dashboard/WorkOrderTrendChart";
 import Table from "../components/ui/Table";
 import Badge from "../components/ui/Badge";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 // Helper types/functions for date handling
 export type DateInput = string | Date | null | undefined;
@@ -38,29 +41,63 @@ function getTodayKey() {
 }
 
 export default async function DashboardPage() {
+  // Role-aware dashboard: derive role and technicianId from the session
+  const session = await getServerSession(authOptions);
+
+  // If there is no session at all, send the user to login rather than
+  // silently treating them as a non-admin.
+  if (!session) {
+    redirect("/login");
+  }
+
+  const role = (session.user as any)?.role;
+  const technicianId = ((session.user as any)?.technicianId ?? null) as
+    | string
+    | null;
+  const isAdmin = role === "ADMIN";
+  const isTechnician = role === "TECHNICIAN";
+
   // Get all needed data from Prisma
-  const [workOrders, assets] = await Promise.all([
+  const [allWorkOrders, assets] = await Promise.all([
     prisma.workOrder.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.asset.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  // Asset ID to name
-  const assetMap = Object.fromEntries(assets.map((a) => [a.id, a.name]));
+  // Role-scoped work orders:
+  // - ADMIN: all work orders
+  // - TECHNICIAN: only work orders assigned to this technician
+  let visibleWorkOrders = allWorkOrders;
 
-  // KPIs
-  const kpiOpen = workOrders.filter((w) => w.status === "Open").length;
-  const kpiInProgress = workOrders.filter(
-    (w) => w.status === "In Progress"
+  if (isTechnician && technicianId) {
+    visibleWorkOrders = allWorkOrders.filter(
+      (w: any) => w.assignedToId === technicianId
+    );
+  }
+
+  // Asset ID to name
+  const assetMap = Object.fromEntries(
+    assets.map((a: any) => [a.id, a.name])
+  );
+
+  // KPIs are based on role-aware `visibleWorkOrders`
+  const kpiOpen = visibleWorkOrders.filter(
+    (w: any) => w.status === "Open"
+  ).length;
+  const kpiInProgress = visibleWorkOrders.filter(
+    (w: any) => w.status === "In Progress"
   ).length;
 
   const todayKey = getTodayKey();
-  const kpiCompletedToday = workOrders.filter(
-    (w) => w.status === "Completed" && w.completedAt && toDayKey(w.completedAt) === todayKey
+  const kpiCompletedToday = visibleWorkOrders.filter(
+    (w: any) =>
+      w.status === "Completed" &&
+      w.completedAt &&
+      toDayKey(w.completedAt) === todayKey
   ).length;
 
   const now = new Date();
 
-  const kpiOverdue = workOrders.filter((w) => {
+  const kpiOverdue = visibleWorkOrders.filter((w: any) => {
     if (!w.dueDate) return false;
 
     const due = new Date(w.dueDate);
@@ -81,16 +118,18 @@ export default async function DashboardPage() {
     return !isCompleted && dueDay < today;
   }).length;
 
-  // Recent work orders (top 5)
-  const recent = [...workOrders]
+  // Recent work orders (top 5) from role-aware set
+  const recent = [...visibleWorkOrders]
     .sort(
-      (a, b) =>
+      (a: any, b: any) =>
         new Date(b.createdAt).getTime() -
         new Date(a.createdAt).getTime()
     )
     .slice(0, 5);
 
-  // Chart: Build trendData (last 14 days)
+  // Chart: Build trendData (last 14 days) from the same role-aware `visibleWorkOrders`
+  const chartSource = visibleWorkOrders as any[];
+
   const days = [...Array(14)].map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (13 - i));
@@ -110,7 +149,7 @@ export default async function DashboardPage() {
     days.map((pt) => [pt.date, { ...pt }])
   );
 
-  for (const w of workOrders) {
+  for (const w of chartSource) {
     // By createdAt
     const createdKey = toDayKey(w.createdAt);
     if (trendMap[createdKey]) trendMap[createdKey].createdCount++;
