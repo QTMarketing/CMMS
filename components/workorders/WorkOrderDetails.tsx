@@ -4,10 +4,12 @@ export default function WorkOrderDetails({
   workOrder,
   asset,
   technicianMap = {},
+  isAdmin = false,
 }: {
   workOrder: any; // can be replaced with your real WorkOrder type
   asset?: any;
   technicianMap?: Record<string, string>;
+  isAdmin?: boolean;
 }) {
   const title: string = workOrder.title ?? "";
   const isPm = title.startsWith("PM:");
@@ -87,12 +89,14 @@ export default function WorkOrderDetails({
           </div>
         </div>
 
-        <Link
-          href={`/workorders/${workOrder.id}/edit`}
-          className="inline-flex items-center px-3 py-1.5 border border-slate-300 rounded text-xs font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Edit Work Order
-        </Link>
+        {isAdmin && (
+          <Link
+            href={`/workorders/${workOrder.id}/edit`}
+            className="inline-flex items-center px-3 py-1.5 border border-slate-300 rounded text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Edit Work Order
+          </Link>
+        )}
       </div>
 
       {/* Main details */}

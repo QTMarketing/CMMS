@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import type { Metadata } from "next";
 import EditWorkOrderForm from "../EditWorkOrderForm";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Edit Work Order",
@@ -16,6 +19,19 @@ type WorkOrderStatus = "Open" | "In Progress" | "Completed" | "Cancelled";
 type WorkOrderPriority = "Low" | "Medium" | "High";
 
 export default async function EditWorkOrderPage({ params }: RouteContext) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    redirect("/login");
+  }
+
+  const role = (session.user as any)?.role;
+  const isAdmin = role === "ADMIN";
+
+  if (!isAdmin) {
+    redirect("/workorders");
+  }
+
   const { id } = await params;
 
   const workOrder = await prisma.workOrder.findUnique({

@@ -75,6 +75,20 @@ export default function SchedulesPage() {
     return s.assetId;
   }
 
+  // Technicians must not be able to use the schedules/PM screen. Show a simple
+  // access message instead of the full UI once the session has loaded.
+  if (!isSessionLoading && !isAdmin) {
+    return (
+      <div className="px-4 py-6 md:px-6 md:py-8">
+        <div className="max-w-xl mx-auto rounded-lg border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-600">
+          Access to preventive maintenance schedules is restricted to
+          administrators. Please contact your maintenance manager if you
+          believe this is an error.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
       <div className="flex justify-between items-center mb-2">

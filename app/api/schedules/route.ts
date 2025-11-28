@@ -1,5 +1,8 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+
+import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 
 function getDaysUntilDue(dueDate: string) {
   const today = new Date();
@@ -10,6 +13,16 @@ function getDaysUntilDue(dueDate: string) {
 }
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as any)?.role;
+
+  if (!session || role !== "ADMIN") {
+    return NextResponse.json(
+      { success: false, error: "Forbidden" },
+      { status: 403 }
+    );
+  }
+
   const now = new Date();
   now.setUTCHours(0,0,0,0);
   const schedules = await prisma.preventiveSchedule.findMany();

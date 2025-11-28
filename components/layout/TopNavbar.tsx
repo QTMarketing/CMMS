@@ -11,6 +11,8 @@ const pageTitles: Record<string, string> = {
   "/assets": "Assets",
   "/inventory": "Inventory",
   "/schedules": "Schedules",
+  "/technicians": "Technicians",
+  "/users": "Users Management",
 };
 
 type TopNavbarUser = {

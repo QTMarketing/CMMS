@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+
 import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -7,6 +10,16 @@ function startOfDay(date: Date) {
 
 export async function POST() {
   try {
+    const session = await getServerSession(authOptions);
+    const role = (session?.user as any)?.role;
+
+    if (!session || role !== "ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
     const today = startOfDay(new Date());
 
     // Find active PM schedules that are due or overdue

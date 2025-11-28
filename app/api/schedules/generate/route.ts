@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
 import { nanoid } from "nanoid";
+
+import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 
 function addDays(date: Date, days: number) {
   const d = new Date(date);
@@ -9,6 +12,16 @@ function addDays(date: Date, days: number) {
 }
 
 export async function POST() {
+  const session = await getServerSession(authOptions);
+  const role = (session?.user as any)?.role;
+
+  if (!session || role !== "ADMIN") {
+    return NextResponse.json(
+      { success: false, error: "Forbidden" },
+      { status: 403 }
+    );
+  }
+
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 

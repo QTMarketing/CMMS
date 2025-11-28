@@ -45,16 +45,32 @@ export default function Sidebar({
   if (isMobile && !open) return null;
 
   const navItems = React.useMemo(() => {
-    const items = [...baseNavItems];
-
-    if (effectiveUser) {
-      items.push({ name: "Submit Request", href: "/request" });
-      if (effectiveUser.role === "ADMIN") {
-        items.push({ name: "Requests", href: "/requests" });
-      }
+    // If we don't know the user yet (e.g. during initial load), fall back to
+    // the base nav so something reasonable renders.
+    if (!effectiveUser?.role) {
+      return [...baseNavItems, { name: "Submit Request", href: "/request" }];
     }
 
-    return items;
+    const role = effectiveUser.role;
+
+    // ADMIN: full navigation including PM, requests inbox, technicians, users.
+    if (role === "ADMIN") {
+      return [
+        ...baseNavItems,
+        { name: "Submit Request", href: "/request" },
+        { name: "Requests", href: "/requests" },
+        { name: "Technicians", href: "/technicians" },
+        { name: "Users", href: "/users" },
+      ];
+    }
+
+    // TECHNICIAN (or any non-admin): restricted navigation.
+    // Only show dashboard, their work orders, and the ability to submit a request.
+    return [
+      { name: "Dashboard", href: "/" },
+      { name: "Work Orders", href: "/workorders" },
+      { name: "Submit Request", href: "/request" },
+    ];
   }, [effectiveUser]);
 
   // Sidebar overlay for mobile

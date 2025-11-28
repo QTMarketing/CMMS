@@ -388,7 +388,7 @@ export default function WorkOrdersPage() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <ViewWorkOrderButton id={w.id} />
-                    <EditWorkOrderButton id={w.id} />
+                    {isAdmin && <EditWorkOrderButton id={w.id} />}
                     {isAdmin && <DeleteWorkOrderButton id={w.id} />}
                   </div>
                 </td>
@@ -405,6 +405,7 @@ export default function WorkOrdersPage() {
             workOrder={selected}
             asset={assetMap[selected.assetId]}
             technicianMap={techMap}
+            isAdmin={isAdmin}
           />
         )}
       </Drawer>
