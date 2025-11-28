@@ -15,6 +15,10 @@ model Asset {
   lastMaintenanceDate DateTime?
   nextMaintenanceDate DateTime?
 
+  // Multi-store: optional owning store for this asset.
+  storeId             String?
+  store               Store?                @relation(fields: [storeId], references: [id])
+
   workOrders          WorkOrder[]
   schedules           PreventiveSchedule[]
   requests            Request[]
@@ -26,6 +30,10 @@ model Technician {
   email     String
   phone     String?
   active    Boolean      @default(true)
+
+  // Multi-store: optional store this technician belongs to.
+  storeId   String?
+  store     Store?       @relation(fields: [storeId], references: [id])
 
   workOrders WorkOrder[] @relation("TechnicianWorkOrders")
   users      User[]      @relation("UserTechnician")
@@ -40,6 +48,10 @@ model WorkOrder {
   createdAt    DateTime     @default(now())
   dueDate      DateTime?
   completedAt  DateTime?
+
+  // Multi-store: optional store that owns this work order.
+  storeId      String?
+  store        Store?       @relation(fields: [storeId], references: [id])
 
   assetId      String
   asset        Asset        @relation(fields: [assetId], references: [id])
@@ -83,6 +95,12 @@ model User {
   email        String      @unique
   password     String
   role         String
+
+  // Multi-store: optional store a user is scoped to
+  // (MASTER_ADMIN-style users will have storeId = null).
+  storeId      String?
+  store        Store?      @relation(fields: [storeId], references: [id])
+
   technicianId String?
   technician   Technician? @relation("UserTechnician", fields: [technicianId], references: [id])
   accounts     Account[]
@@ -99,6 +117,30 @@ model Request {
   status      String
   createdAt   DateTime @default(now())
   createdBy   String?
+
+  // Multi-store: optional store this request belongs to.
+  storeId     String?
+  store       Store?   @relation(fields: [storeId], references: [id])
+}
+
+// Multi-store / multi-tenant support. For now, storeId fields are optional on
+// core entities so existing single-store data keeps working unchanged.
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  code      String?  @unique
+  address   String?
+  city      String?
+  state     String?
+  timezone  String?
+  createdAt DateTime @default(now())
+
+  users       User[]
+  technicians Technician[]
+  assets      Asset[]
+  workOrders  WorkOrder[]
+  requests    Request[]
+  pmSchedules PreventiveSchedule[]
 }
 
 // Auth.js / NextAuth supporting models

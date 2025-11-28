@@ -289,7 +289,55 @@ Cursor MUST enforce these:
 
 ---
 
-# 8. VALIDATION RULES (Cursor MUST implement in API layer)
+# 8. MULTI-STORE / MULTI-TENANT PREPARATION (Phase 6)
+
+To support multiple stores/locations, the data model is being extended with a
+`Store` entity and optional `storeId` references on core models. Existing logic
+remains single-store for now.
+
+## 8.1 Store Model
+
+```ts
+interface Store {
+  id: string;        // cuid
+  name: string;      // Store name (e.g. "Store #1")
+  code?: string;     // Optional short code (e.g. "ST1")
+  address?: string;
+  city?: string;
+  state?: string;
+  timezone?: string;
+  createdAt: string; // ISO timestamp
+}
+```
+
+## 8.2 Store Relationships
+
+- `User.storeId?: string | null` → optional store a user is scoped to  
+  - Global / master admins will have `storeId = null`.
+- `Technician.storeId?: string | null` → store this technician belongs to.
+- `Asset.storeId?: string | null` → store that owns the asset.
+- `WorkOrder.storeId?: string | null` → store that owns the work order.
+- `PreventiveSchedule.storeId?: string | null` → store for the PM schedule.
+- `Request.storeId?: string | null` → store that submitted/owns the request.
+
+All of these are optional to remain backwards compatible with existing data and
+single-store behavior. Store-scoped filtering will be added in later Phase 6 steps.
+
+## 8.3 Roles (Upcoming Structure)
+
+The `User.role` string field will progressively move toward the following
+semantics:
+
+- `"MASTER_ADMIN"` – global across all stores; can see/manage everything.
+- `"STORE_ADMIN"` – scoped to a single store via `storeId`.
+- `"TECHNICIAN"` – scoped to a single store via `storeId`.
+
+For now, existing `"ADMIN"` / `"TECHNICIAN"` string values continue to work
+unchanged; new role values will be phased in alongside store-aware logic.
+
+---
+
+# 9. VALIDATION RULES (Cursor MUST implement in API layer)
 
 ## WorkOrder Validation
 - title → required  
