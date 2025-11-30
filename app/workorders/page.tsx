@@ -2,8 +2,9 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Table from "../../components/ui/Table";
 import Badge from "../../components/ui/Badge";
 import Drawer from "../../components/ui/Drawer";
@@ -15,6 +16,8 @@ import EditWorkOrderButton from "./EditWorkOrderButton";
 import ViewWorkOrderButton from "./ViewWorkOrderButton";
 import DeleteWorkOrderButton from "./DeleteWorkOrderButton";
 import AdminOnly from "@/components/auth/AdminOnly";
+import { isAdminLike, isTechnician as isTechnicianRole } from "@/lib/roles";
+import StoreFilter from "@/components/StoreFilter";
 
 // --- Type definitions for API objects ---
 interface Technician {
@@ -56,7 +59,10 @@ function formatDate(date: DateInput) {
 }
 
 export default function WorkOrdersPage() {
+  const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
+  const searchParams = useSearchParams();
+  const selectedStoreId = searchParams.get("storeId") || "";
 
   // While the session is loading on the client, avoid making assumptions
   // about the user's role. This prevents briefly treating an admin as a
@@ -67,8 +73,12 @@ export default function WorkOrdersPage() {
   const technicianId = !isSessionLoading
     ? (((session?.user as any)?.technicianId ?? null) as string | null)
     : null;
-  const isAdmin = role === "ADMIN";
-  const isTechnician = role === "TECHNICIAN";
+  const userStoreId = !isSessionLoading
+    ? (((session?.user as any)?.storeId ?? null) as string | null)
+    : null;
+  const isAdmin = isAdminLike(role);
+  const isTechnician = isTechnicianRole(role);
+  const isMaster = role === "MASTER_ADMIN";
 
   const [status, setStatus] =
     useState<(typeof statusOptions)[number]>("All");
@@ -92,14 +102,23 @@ export default function WorkOrdersPage() {
   // 🔹 "My Tasks" mode (focus on a single technician's active work)
   const [myTasksMode, setMyTasksMode] = useState(false);
   const [myTasksInitialized, setMyTasksInitialized] = useState(false);
+  const [stores, setStores] = useState<
+    { id: string; name: string; code?: string | null }[]
+  >([]);
+  const [isRefreshing, startTransition] = useTransition();
 
   // --------- Load data ---------
   useEffect(() => {
-    fetch("/api/workorders", { cache: "no-store" })
+    const qs =
+      isMaster && selectedStoreId
+        ? `?storeId=${encodeURIComponent(selectedStoreId)}`
+        : "";
+
+    fetch(`/api/workorders${qs}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setTableOrders(data.data || []));
 
-    fetch("/api/assets", { cache: "no-store" })
+    fetch(`/api/assets${qs}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) =>
         setAssets(Array.isArray(data) ? data : data.data || [])
@@ -110,7 +129,18 @@ export default function WorkOrdersPage() {
       .then((data) =>
         setTechnicians(Array.isArray(data) ? data : data.data || [])
       );
-  }, []);
+
+    if (isMaster) {
+      fetch("/api/stores", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data) =>
+          setStores(Array.isArray(data?.data) ? data.data : [])
+        )
+        .catch(() => {
+          // swallow; filter will simply not render
+        });
+    }
+  }, [isMaster, selectedStoreId]);
 
   // For technicians, default My Tasks to ON (focus on active queue) once the
   // role information is available. Admins keep My Tasks off by default.
@@ -216,9 +246,13 @@ export default function WorkOrdersPage() {
 
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
-      {/* Top Bar: Button right */}
-      <div className="flex flex-row items-center mb-2">
-        <div className="flex-1" />
+      {/* Top Bar: Store filter (MASTER_ADMIN) + Button right */}
+      <div className="flex flex-row items-center mb-2 gap-3 justify-between">
+        <div className="flex-1">
+          {isMaster && stores.length > 0 && (
+            <StoreFilter stores={stores} selectedStoreId={selectedStoreId} />
+          )}
+        </div>
         <AdminOnly>
           <button
             className="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700"
@@ -406,6 +440,8 @@ export default function WorkOrdersPage() {
             asset={assetMap[selected.assetId]}
             technicianMap={techMap}
             isAdmin={isAdmin}
+            isTechnician={isTechnician}
+            currentTechnicianId={technicianId}
           />
         )}
       </Drawer>
@@ -413,13 +449,16 @@ export default function WorkOrdersPage() {
       {/* Drawer for create form */}
       <Drawer open={showCreate} onClose={() => setShowCreate(false)}>
         <CreateWorkOrderForm
+          isMasterAdmin={isMaster}
+          stores={stores}
+          currentStoreId={isMaster ? selectedStoreId || null : userStoreId}
           onSuccess={(newWorkOrder) => {
             // Close the drawer
             setShowCreate(false);
-            // Refresh table data after successful creation
-            fetch("/api/workorders", { cache: "no-store" })
-              .then((res) => res.json())
-              .then((data) => setTableOrders(data.data || []));
+            // Refresh server-driven data (dashboard, lists, etc.)
+            startTransition(() => {
+              router.refresh();
+            });
           }}
           onCancel={() => setShowCreate(false)}
         />

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { isAdminLike } from "@/lib/roles";
 
 export const metadata: Metadata = {
   title: "Edit Work Order",
@@ -26,7 +27,7 @@ export default async function EditWorkOrderPage({ params }: RouteContext) {
   }
 
   const role = (session.user as any)?.role;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   if (!isAdmin) {
     redirect("/workorders");

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,24 @@ export default async function RequestPage({ searchParams }: RequestPageProps) {
     redirect("/login");
   }
 
+  const role = (session.user as any)?.role as string | undefined;
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
+
+  const assetWhere: any = {};
+
+  if (!canSeeAllStores(role)) {
+    const scopedStoreId = getScopedStoreId(role, userStoreId);
+    if (scopedStoreId) {
+      assetWhere.storeId = scopedStoreId;
+    } else {
+      assetWhere.storeId = "__never_match__";
+    }
+  }
+
   const assets = await prisma.asset.findMany({
+    where: assetWhere,
     orderBy: { id: "asc" },
   });
 
@@ -49,6 +67,22 @@ export default async function RequestPage({ searchParams }: RequestPageProps) {
       (session.user as { name?: string | null })?.name ||
       null;
 
+    const userStoreId = ((session.user as any)?.storeId ?? null) as
+      | string
+      | null;
+
+    let storeId: string | null = userStoreId;
+
+    if (assetId) {
+      const asset = await prisma.asset.findUnique({
+        where: { id: assetId },
+        select: { storeId: true },
+      });
+      if (asset?.storeId) {
+        storeId = asset.storeId;
+      }
+    }
+
     await prisma.request.create({
       data: {
         title,
@@ -57,6 +91,7 @@ export default async function RequestPage({ searchParams }: RequestPageProps) {
         status: "Open",
         assetId,
         createdBy,
+        storeId,
       },
     });
 

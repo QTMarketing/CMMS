@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { isAdminLike, isTechnician as isTechnicianRole } from "@/lib/roles";
 
 const VALID_STATUSES = ["Open", "In Progress", "Completed", "Cancelled"] as const;
 type Status = (typeof VALID_STATUSES)[number];
@@ -28,10 +29,11 @@ export async function PATCH(
   }
 
   const sessionUser = session.user as any;
-  const sessionRole = sessionUser?.role;
+  const sessionRole = sessionUser?.role as string | undefined;
   const sessionTechnicianId = (sessionUser?.technicianId ?? null) as
     | string
     | null;
+  const sessionStoreId = (sessionUser?.storeId ?? null) as string | null;
 
   const id = params.id;
   const body = await req.json();
@@ -48,12 +50,14 @@ export async function PATCH(
     );
   }
 
-  // Only admins or the technician assigned to this work order may update it.
-  const isAdmin = sessionRole === "ADMIN";
+  // Only admins or the technician assigned to this work order (within their store)
+  // may update it.
+  const isAdmin = isAdminLike(sessionRole);
   const isAssignedTechnician =
-    sessionRole === "TECHNICIAN" &&
+    isTechnicianRole(sessionRole) &&
     !!sessionTechnicianId &&
-    existing.assignedToId === sessionTechnicianId;
+    existing.assignedToId === sessionTechnicianId &&
+    (!!existing.storeId ? existing.storeId === sessionStoreId : false);
 
   if (!isAdmin && !isAssignedTechnician) {
     return NextResponse.json(

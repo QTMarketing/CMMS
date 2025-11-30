@@ -2,6 +2,8 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { isMasterAdmin } from "@/lib/roles";
+import { prisma } from "@/lib/prisma";
 import UsersTable from "./components/UsersTable";
 import AddUserDrawer from "./components/AddUserDrawer";
 
@@ -10,9 +12,18 @@ export const dynamic = "force-dynamic";
 export default async function UsersPage() {
   const session = await getServerSession(authOptions);
 
-  if (!session || (session.user as any)?.role !== "ADMIN") {
+  if (!session || !isMasterAdmin((session.user as any)?.role)) {
     redirect("/workorders");
   }
+
+  const stores = await prisma.store.findMany({
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+    },
+  });
 
   return (
     <div className="px-2 sm:px-4 md:px-6 py-4 md:py-8 space-y-4">
@@ -26,7 +37,7 @@ export default async function UsersPage() {
             accounts.
           </p>
         </div>
-        <AddUserDrawer />
+        <AddUserDrawer stores={stores} />
       </div>
 
       <UsersTable />

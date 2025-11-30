@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -8,58 +8,58 @@ generator client {
 }
 
 model Asset {
-  id                  String                @id
+  id                  String    @id
   name                String
   location            String
-  status              String                // "Active" | "Down" | "Retired"
+  status              String // "Active" | "Down" | "Retired"
   lastMaintenanceDate DateTime?
   nextMaintenanceDate DateTime?
 
   // Multi-store: optional owning store for this asset.
-  storeId             String?
-  store               Store?                @relation(fields: [storeId], references: [id])
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
 
-  workOrders          WorkOrder[]
-  schedules           PreventiveSchedule[]
-  requests            Request[]
+  workOrders WorkOrder[]
+  schedules  PreventiveSchedule[]
+  requests   Request[]
 }
 
 model Technician {
-  id        String      @id
-  name      String
-  email     String
-  phone     String?
-  active    Boolean      @default(true)
+  id     String  @id
+  name   String
+  email  String
+  phone  String?
+  active Boolean @default(true)
 
   // Multi-store: optional store this technician belongs to.
-  storeId   String?
-  store     Store?       @relation(fields: [storeId], references: [id])
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
 
   workOrders WorkOrder[] @relation("TechnicianWorkOrders")
   users      User[]      @relation("UserTechnician")
 }
 
 model WorkOrder {
-  id           String       @id
-  title        String
-  description  String?
-  priority     String       // "Low" | "Medium" | "High"
-  status       String       // "Open" | "In Progress" | "Completed" | "Cancelled"
-  createdAt    DateTime     @default(now())
-  dueDate      DateTime?
-  completedAt  DateTime?
+  id          String    @id
+  title       String
+  description String?
+  priority    String // "Low" | "Medium" | "High"
+  status      String // "Open" | "In Progress" | "Completed" | "Cancelled"
+  createdAt   DateTime  @default(now())
+  dueDate     DateTime?
+  completedAt DateTime?
 
   // Multi-store: optional store that owns this work order.
-  storeId      String?
-  store        Store?       @relation(fields: [storeId], references: [id])
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
 
-  assetId      String
-  asset        Asset        @relation(fields: [assetId], references: [id])
+  assetId String
+  asset   Asset  @relation(fields: [assetId], references: [id])
 
   assignedToId String?
-  assignedTo   Technician?  @relation("TechnicianWorkOrders", fields: [assignedToId], references: [id])
+  assignedTo   Technician? @relation("TechnicianWorkOrders", fields: [assignedToId], references: [id])
 
-  notes        Note[]
+  notes Note[]
 }
 
 model Note {
@@ -78,6 +78,10 @@ model InventoryItem {
   quantityOnHand   Int
   reorderThreshold Int
   location         String?
+
+  // Multi-store: optional store that owns this inventory item.
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
 }
 
 model PreventiveSchedule {
@@ -88,18 +92,22 @@ model PreventiveSchedule {
   frequencyDays Int
   nextDueDate   DateTime
   active        Boolean  @default(true)
+
+  // Multi-store: optional store this PM schedule belongs to.
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
 }
 
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
-  password     String
-  role         String
+  id       String @id @default(cuid())
+  email    String @unique
+  password String
+  role     String
 
   // Multi-store: optional store a user is scoped to
   // (MASTER_ADMIN-style users will have storeId = null).
-  storeId      String?
-  store        Store?      @relation(fields: [storeId], references: [id])
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
 
   technicianId String?
   technician   Technician? @relation("UserTechnician", fields: [technicianId], references: [id])
@@ -119,8 +127,8 @@ model Request {
   createdBy   String?
 
   // Multi-store: optional store this request belongs to.
-  storeId     String?
-  store       Store?   @relation(fields: [storeId], references: [id])
+  storeId String?
+  store   Store?  @relation(fields: [storeId], references: [id])
 }
 
 // Multi-store / multi-tenant support. For now, storeId fields are optional on
@@ -135,12 +143,13 @@ model Store {
   timezone  String?
   createdAt DateTime @default(now())
 
-  users       User[]
-  technicians Technician[]
-  assets      Asset[]
-  workOrders  WorkOrder[]
-  requests    Request[]
-  pmSchedules PreventiveSchedule[]
+  users          User[]
+  technicians    Technician[]
+  assets         Asset[]
+  workOrders     WorkOrder[]
+  requests       Request[]
+  pmSchedules    PreventiveSchedule[]
+  inventoryItems InventoryItem[]
 }
 
 // Auth.js / NextAuth supporting models
@@ -177,4 +186,3 @@ model VerificationToken {
 
   @@unique([identifier, token])
 }
-

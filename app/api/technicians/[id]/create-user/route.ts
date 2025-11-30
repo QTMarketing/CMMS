@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { isAdminLike } from "@/lib/roles";
 
 export async function POST(
   req: NextRequest,
@@ -11,9 +12,8 @@ export async function POST(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    const role = (session?.user as any)?.role;
 
-    if (!session || role !== "ADMIN") {
+    if (!session || !isAdminLike((session.user as any)?.role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -30,6 +30,17 @@ export async function POST(
       return NextResponse.json(
         { success: false, error: "Technician not found." },
         { status: 404 }
+      );
+    }
+
+    if (!technician.storeId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Technician does not have a store assigned. Please set a store before creating a login.",
+        },
+        { status: 400 }
       );
     }
 
@@ -99,6 +110,8 @@ export async function POST(
         password: hashedPassword,
         role: "TECHNICIAN",
         technicianId,
+        // Align the user with the technician's store so store-based scoping works.
+        storeId: technician.storeId,
       },
     });
 

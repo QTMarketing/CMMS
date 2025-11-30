@@ -1,9 +1,12 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Badge from "../../components/ui/Badge";
 import Table from "../../components/ui/Table";
+import AddAssetDrawer from "./components/AddAssetDrawer";
+import StoreFilter from "@/components/StoreFilter";
 
 const statusColors: Record<string, string> = {
   Active: "bg-green-100 text-green-600",
@@ -32,29 +35,44 @@ function nextDueDays(nextDate?: string) {
 
 export default function AssetsPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [assets, setAssets] = useState<any[]>([]);
   const [workOrders, setWorkOrders] = useState<any[]>([]);
   const [pmSummaries, setPmSummaries] = useState<any[]>([]);
+  const [stores, setStores] = useState<any[]>([]);
+  const searchParams = useSearchParams();
+  const selectedStoreId = searchParams.get("storeId") || "";
 
   useEffect(() => {
-    fetch("/api/assets", { cache: "no-store" })
+    const qs = selectedStoreId
+      ? `?storeId=${encodeURIComponent(selectedStoreId)}`
+      : "";
+
+    fetch(`/api/assets${qs}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setAssets(Array.isArray(data) ? data : data.data || []));
 
     // Load work orders once so we can compute per-asset workload counts
-    fetch("/api/workorders", { cache: "no-store" })
+    fetch(`/api/workorders${qs}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) =>
         setWorkOrders(Array.isArray(data) ? data : data.data || [])
       );
 
     // Load preventive schedules so we can show a light PM status indicator per asset
-    fetch("/api/schedules", { cache: "no-store" })
+    fetch(`/api/schedules${qs}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) =>
         setPmSummaries(Array.isArray(data) ? data : data.data || [])
       );
-  }, []);
+
+    fetch("/api/stores", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((data) =>
+        setStores(Array.isArray(data?.data) ? data.data : [])
+      )
+      .catch(() => {});
+  }, [selectedStoreId]);
 
   const countsByAsset: Record<
     string,
@@ -108,6 +126,18 @@ export default function AssetsPage() {
 
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          {stores.length > 0 && (
+            <StoreFilter
+              stores={stores}
+              selectedStoreId={selectedStoreId || null}
+              label="Store"
+            />
+          )}
+        </div>
+        <AddAssetDrawer />
+      </div>
       <Table
         headers={[
           "Asset ID",

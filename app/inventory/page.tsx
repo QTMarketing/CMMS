@@ -1,18 +1,51 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Badge from "../../components/ui/Badge";
 import Table from "../../components/ui/Table";
+import AddInventoryDrawer from "./components/AddInventoryDrawer";
+import StoreFilter from "@/components/StoreFilter";
 
 export default function InventoryPage() {
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [inventory, setInventory] = useState([]);
+  const [stores, setStores] = useState<any[]>([]);
+  const searchParams = useSearchParams();
+  const selectedStoreId = searchParams.get("storeId") || "";
 
   useEffect(() => {
-    fetch("/api/inventory", { cache: "no-store" })
+    const qs = selectedStoreId
+      ? `?storeId=${encodeURIComponent(selectedStoreId)}`
+      : "";
+
+    fetch(`/api/inventory${qs}`, { cache: "no-store" })
+      .then(async (res) => {
+        const text = await res.text().catch(() => "");
+        if (!text) {
+          return { data: [] };
+        }
+        try {
+          return JSON.parse(text);
+        } catch {
+          console.error(
+            "Failed to parse /api/inventory response as JSON:",
+            text
+          );
+          return { data: [] };
+        }
+      })
+      .then((data) =>
+        setInventory(Array.isArray(data) ? data : data.data || [])
+      );
+
+    fetch("/api/stores", { cache: "no-store" })
       .then((res) => res.json())
-      .then((data) => setInventory(Array.isArray(data) ? data : data.data || []));
-  }, []);
+      .then((data) =>
+        setStores(Array.isArray(data?.data) ? data.data : [])
+      )
+      .catch(() => {});
+  }, [selectedStoreId]);
 
   // Sort by name ASC
   const rows = inventory
@@ -26,17 +59,31 @@ export default function InventoryPage() {
 
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
-      {/* Filter Toggle */}
-      <div className="flex items-center mb-2 gap-3">
-        <label className="flex items-center gap-2 text-sm select-none">
-          <input
-            type="checkbox"
-            checked={showLowStockOnly}
-            onChange={() => setShowLowStockOnly((v) => !v)}
-          />
-          Show Low Stock Only
-        </label>
-        <span className="text-gray-400 text-xs">{filtered.length} items</span>
+      <div className="flex items-center mb-2 gap-3 justify-between">
+        {/* Filter Toggle */}
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm select-none">
+            <input
+              type="checkbox"
+              checked={showLowStockOnly}
+              onChange={() => setShowLowStockOnly((v) => !v)}
+            />
+            Show Low Stock Only
+          </label>
+          <span className="text-gray-400 text-xs">
+            {filtered.length} items
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          {stores.length > 0 && (
+            <StoreFilter
+              stores={stores}
+              selectedStoreId={selectedStoreId || null}
+              label="Store"
+            />
+          )}
+          <AddInventoryDrawer />
+        </div>
       </div>
       {/* Table */}
       <Table

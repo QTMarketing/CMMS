@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { isAdminLike } from "@/lib/roles";
 
 function addDays(date: Date, days: number) {
   const d = new Date(date);
@@ -13,9 +14,8 @@ function addDays(date: Date, days: number) {
 
 export async function POST() {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role;
 
-  if (!session || role !== "ADMIN") {
+  if (!session || !isAdminLike((session.user as any)?.role)) {
     return NextResponse.json(
       { success: false, error: "Forbidden" },
       { status: 403 }

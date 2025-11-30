@@ -1,27 +1,44 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import Drawer from "@/components/ui/Drawer";
 import AdminOnly from "@/components/auth/AdminOnly";
 
-export default function AddTechnicianDrawer() {
+type StoreOption = {
+  id: string;
+  name: string;
+  code?: string | null;
+};
+
+type AddTechnicianDrawerProps = {
+  isMasterAdmin: boolean;
+  stores: StoreOption[];
+};
+
+export default function AddTechnicianDrawer({
+  isMasterAdmin,
+  stores,
+}: AddTechnicianDrawerProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [active, setActive] = useState(true);
+  const [storeId, setStoreId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   function resetForm() {
     setName("");
     setEmail("");
     setPhone("");
     setActive(true);
+    setStoreId("");
     setError(null);
   }
 
@@ -31,8 +48,19 @@ export default function AddTechnicianDrawer() {
     // Basic email validation
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailPattern.test(email.trim())) return "Please enter a valid email.";
+    // Only MASTER_ADMIN chooses store; STORE_ADMIN is forced to their own store on the backend.
+    if (isMasterAdmin && !storeId) return "Store is required for technicians.";
     return null;
   }
+
+  const storeOptions = useMemo(
+    () =>
+      stores.map((s) => ({
+        id: s.id,
+        label: s.code ? `${s.name} (${s.code})` : s.name,
+      })),
+    [stores]
+  );
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -45,17 +73,28 @@ export default function AddTechnicianDrawer() {
     setLoading(true);
     setError(null);
     try {
+      const payload: any = {
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        active,
+      };
+
+      if (isMasterAdmin) {
+        if (!storeId) {
+          setError("Store is required for technicians.");
+          setLoading(false);
+          return;
+        }
+        payload.storeId = storeId;
+      }
+
       const res = await fetch("/api/technicians", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim() || undefined,
-          active,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json().catch(() => null);
@@ -73,7 +112,9 @@ export default function AddTechnicianDrawer() {
       // Success: close drawer, reset form, and refresh list
       resetForm();
       setOpen(false);
-      router.refresh();
+      startTransition(() => {
+        router.refresh();
+      });
     } catch (err) {
       setError("Unexpected error while creating technician.");
     } finally {
@@ -153,6 +194,27 @@ export default function AddTechnicianDrawer() {
             />
           </div>
 
+          {isMasterAdmin && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Store <span className="text-red-500">*</span>
+              </label>
+              <select
+                className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={storeId}
+                onChange={(e) => setStoreId(e.target.value)}
+                required
+              >
+                <option value="">Select a store…</option>
+                {storeOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <input
               id="active"
@@ -184,7 +246,7 @@ export default function AddTechnicianDrawer() {
             <button
               type="submit"
               className="rounded-md bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
-              disabled={loading}
+              disabled={loading || isPending}
             >
               {loading ? "Saving..." : "Save Technician"}
             </button>

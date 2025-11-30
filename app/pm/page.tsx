@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import Table from "../../components/ui/Table";
 import Badge from "../../components/ui/Badge";
+import { isAdminLike } from "@/lib/roles";
+import { getScopedStoreId, canSeeAllStores } from "@/lib/storeAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -50,18 +52,31 @@ export default async function PmSchedulesPage() {
   }
 
   const role = (session.user as any)?.role;
-  const technicianId = ((session.user as any)?.technicianId ?? null) as
-    | string
-    | null;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   // Technicians must not see this page.
   if (!isAdmin) {
     redirect("/workorders");
   }
 
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
+
+  const where: any = {};
+
+  if (!canSeeAllStores(role)) {
+    const scopedStoreId = getScopedStoreId(role, userStoreId);
+    if (scopedStoreId) {
+      where.storeId = scopedStoreId;
+    } else {
+      where.storeId = "__never_match__";
+    }
+  }
+
   // Use existing Prisma model: PreventiveSchedule
   const pmSchedules = await prisma.preventiveSchedule.findMany({
+    where,
     include: {
       asset: true,
     },

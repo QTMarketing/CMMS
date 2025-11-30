@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import Table from "../../components/ui/Table";
 import Badge from "../../components/ui/Badge";
 import AdminOnly from "@/components/auth/AdminOnly";
+import { isAdminLike } from "@/lib/roles";
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 type DateInput = Date | string | null | undefined;
@@ -37,7 +38,7 @@ export default function SchedulesPage() {
   const technicianId = !isSessionLoading
     ? (((session?.user as any)?.technicianId ?? null) as string | null)
     : null;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   async function fetchSchedules() {
     setLoading(true);

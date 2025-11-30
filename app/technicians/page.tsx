@@ -1,25 +1,85 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
+import type { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  isAdminLike,
+  isTechnician as isTechnicianRole,
+  isMasterAdmin,
+} from "@/lib/roles";
+import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
+import StoreFilter from "@/components/StoreFilter";
 import AddTechnicianDrawer from "./components/AddTechnicianDrawer";
 import CreateTechnicianUserDrawer from "./components/CreateTechnicianUserDrawer";
+import ToggleTechnicianActive from "./components/ToggleTechnicianActive";
 
 export const dynamic = "force-dynamic";
 
-type TechnicianWithWorkOrders = Awaited<
-  ReturnType<typeof prisma.technician.findMany>
->[number];
+type TechnicianWithWorkOrders = Prisma.TechnicianGetPayload<{
+  include: {
+    workOrders: true;
+    users: true;
+  };
+}>;
 
-export default async function TechniciansPage() {
+export default async function TechniciansPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
   const session = await getServerSession(authOptions);
 
-  if (!session || (session.user as any)?.role !== "ADMIN") {
+  const role = (session?.user as any)?.role as string | undefined;
+  const isMaster = isMasterAdmin(role);
+
+  // Technicians must not see this page at all.
+  if (!session || isTechnicianRole(role) || !isAdminLike(role)) {
     redirect("/workorders");
   }
 
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
+
+  const selectedStoreId =
+    typeof params.storeId === "string" ? params.storeId : undefined;
+
+  let currentStoreName = "All Stores";
+
+  if (isMaster) {
+    if (selectedStoreId) {
+      const store = await prisma.store.findUnique({
+        where: { id: selectedStoreId },
+      });
+      if (store) currentStoreName = store.name;
+    }
+  } else {
+    const store = userStoreId
+      ? await prisma.store.findUnique({
+          where: { id: userStoreId },
+        })
+      : null;
+    if (store) currentStoreName = store.name;
+  }
+
+  const techWhere: any = {};
+
+  if (!canSeeAllStores(role)) {
+    const scopedStoreId = getScopedStoreId(role, userStoreId);
+    if (scopedStoreId) {
+      techWhere.storeId = scopedStoreId;
+    } else {
+      techWhere.storeId = "__never_match__";
+    }
+  } else if (selectedStoreId) {
+    techWhere.storeId = selectedStoreId;
+  }
+
   const technicians = await prisma.technician.findMany({
+    where: techWhere,
     orderBy: { name: "asc" },
     include: {
       workOrders: true,
@@ -27,18 +87,42 @@ export default async function TechniciansPage() {
     },
   });
 
+  let stores: { id: string; name: string; code?: string | null }[] = [];
+
+  if (isMaster) {
+    stores = await prisma.store.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+      },
+    });
+  }
+
   return (
     <div className="px-2 sm:px-4 md:px-6 py-4 md:py-8 space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
           <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-            Technicians
+            Technicians — {currentStoreName}
           </h1>
           <p className="text-sm text-gray-600">
             View all technicians and their workload.
           </p>
         </div>
-        <AddTechnicianDrawer />
+        <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-end">
+          {isMaster && stores.length > 0 && (
+            <StoreFilter
+              stores={stores}
+              selectedStoreId={selectedStoreId ?? null}
+              label="Store"
+            />
+          )}
+          {isAdminLike(role) && !isTechnicianRole(role) && (
+            <AddTechnicianDrawer isMasterAdmin={isMaster} stores={stores} />
+          )}
+        </div>
       </div>
 
       {technicians.length === 0 ? (
@@ -77,7 +161,7 @@ export default async function TechniciansPage() {
                     <td className="px-4 py-3 text-gray-700">
                       {tech.phone ?? "—"}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 space-y-1">
                       <span
                         className={
                           tech.active
@@ -87,6 +171,9 @@ export default async function TechniciansPage() {
                       >
                         {tech.active ? "Active" : "Inactive"}
                       </span>
+                      <div className="mt-1">
+                        <ToggleTechnicianActive id={tech.id} active={tech.active} />
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-700">{openCount}</td>
                     <td className="px-4 py-3 text-gray-700">

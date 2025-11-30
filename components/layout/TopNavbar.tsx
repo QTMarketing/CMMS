@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { useTheme } from "next-themes";
+import { isAdminLike, isTechnician as isTechnicianRole } from "@/lib/roles";
 
 const pageTitles: Record<string, string> = {
   "/": "Dashboard",
@@ -45,10 +46,11 @@ export default function TopNavbar({
     ] ||
     "";
 
+  const role = effectiveUser?.role;
   const roleLabel =
-    effectiveUser?.role === "ADMIN"
+    role && isAdminLike(role)
       ? "Admin"
-      : effectiveUser?.role === "TECHNICIAN"
+      : role && isTechnicianRole(role)
       ? "Technician"
       : undefined;
 

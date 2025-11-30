@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { isAdminLike } from "@/lib/roles";
+import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 
 function getDaysUntilDue(dueDate: string) {
   const today = new Date();
@@ -12,20 +14,40 @@ function getDaysUntilDue(dueDate: string) {
   return Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role;
 
-  if (!session || role !== "ADMIN") {
+  if (!session || !isAdminLike((session.user as any)?.role)) {
     return NextResponse.json(
       { success: false, error: "Forbidden" },
       { status: 403 }
     );
   }
 
+  const role = (session.user as any)?.role as string | undefined;
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
+  const urlStoreId = req.nextUrl.searchParams.get("storeId") || null;
+
+  const where: any = {};
+
+  if (canSeeAllStores(role)) {
+    if (urlStoreId) {
+      where.storeId = urlStoreId;
+    }
+  } else {
+    const scopedStoreId = getScopedStoreId(role, userStoreId);
+    if (scopedStoreId) {
+      where.storeId = scopedStoreId;
+    } else {
+      where.storeId = "__never_match__";
+    }
+  }
+
   const now = new Date();
   now.setUTCHours(0,0,0,0);
-  const schedules = await prisma.preventiveSchedule.findMany();
+  const schedules = await prisma.preventiveSchedule.findMany({ where });
   const data = schedules.map(s => {
     const daysUntilDue = getDaysUntilDue(s.nextDueDate.toISOString());
     const due = daysUntilDue <= 0 && s.active;

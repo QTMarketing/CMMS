@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { isAdminLike } from "@/lib/roles";
 
 const ALLOWED_ROLES = ["ADMIN", "TECHNICIAN"] as const;
 
@@ -13,9 +14,9 @@ export async function PATCH(
   try {
     const session = await getServerSession(authOptions);
     const sessionUser = session?.user as any;
-    const sessionRole = sessionUser?.role;
+    const sessionRole = sessionUser?.role as string | undefined;
 
-    if (!session || sessionRole !== "ADMIN") {
+    if (!session || !isAdminLike(sessionRole)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }

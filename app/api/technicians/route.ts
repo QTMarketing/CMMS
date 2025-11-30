@@ -3,9 +3,37 @@ import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { isAdminLike, isMasterAdmin, isTechnician } from "@/lib/roles";
+import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
+  const role = (session.user as any)?.role as string | undefined;
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
+
+  const where: any = {};
+
+  if (!canSeeAllStores(role)) {
+    const scopedStoreId = getScopedStoreId(role, userStoreId);
+    if (scopedStoreId) {
+      where.storeId = scopedStoreId;
+    } else {
+      where.storeId = "__never_match__";
+    }
+  }
+
   const items = await prisma.technician.findMany({
+    where,
     orderBy: { name: "asc" },
   });
   return NextResponse.json(items);
@@ -15,8 +43,20 @@ export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
 
-    const role = (session?.user as any)?.role;
-    if (!session || role !== "ADMIN") {
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const role = (session.user as any)?.role as string | undefined;
+    const userStoreId = ((session.user as any)?.storeId ?? null) as
+      | string
+      | null;
+
+    // Only admin-like roles may create technicians; TECHNICIAN explicitly forbidden.
+    if (!isAdminLike(role) || isTechnician(role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -24,7 +64,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, active } = body ?? {};
+    const { name, email, phone, active, storeId: rawStoreId } = body ?? {};
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
@@ -48,6 +88,51 @@ export async function POST(request: Request) {
       );
     }
 
+    const bodyStoreId =
+      typeof rawStoreId === "string" && rawStoreId.trim().length > 0
+        ? rawStoreId.trim()
+        : null;
+
+    let storeId: string | null = null;
+
+    if (isMasterAdmin(role)) {
+      // MASTER_ADMIN must supply storeId in the request body.
+      if (!bodyStoreId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "storeId is required for technicians.",
+          },
+          { status: 400 }
+        );
+      }
+      storeId = bodyStoreId;
+    } else {
+      // STORE_ADMIN: force technician into their own store,
+      // ignoring any storeId passed in the body.
+      storeId = userStoreId;
+      if (!storeId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "User has no store assigned.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+    });
+
+    if (!store) {
+      return NextResponse.json(
+        { success: false, error: "Invalid store selected." },
+        { status: 400 }
+      );
+    }
+
     const newTech = await prisma.technician.create({
       data: {
         id: crypto.randomUUID(),
@@ -55,6 +140,7 @@ export async function POST(request: Request) {
         email: email.trim(),
         phone: phone && typeof phone === "string" ? phone.trim() : null,
         active: typeof active === "boolean" ? active : true,
+        storeId: store.id,
       },
     });
 

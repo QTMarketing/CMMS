@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { notFound, redirect } from "next/navigation";
+import { isAdminLike } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function RequestDetailPage({
   }
 
   const role = (session.user as any)?.role;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   if (!isAdmin) {
     redirect("/workorders");

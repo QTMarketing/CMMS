@@ -3,13 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { isAdminLike } from "@/lib/roles";
 
 async function updatePmSchedule(id: string, formData: FormData) {
   "use server";
 
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   if (!isAdmin) {
     redirect("/workorders");
@@ -55,7 +56,7 @@ export default async function EditPmSchedulePage({ params }: PageProps) {
   }
 
   const role = (session.user as any)?.role;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   if (!isAdmin) {
     redirect("/workorders");

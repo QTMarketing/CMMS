@@ -3,6 +3,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React from "react";
 import { useSession } from "next-auth/react";
+import {
+  isAdminLike,
+  isTechnician as isTechnicianRole,
+  isMasterAdmin,
+  isStoreAdmin,
+} from "@/lib/roles";
 
 const baseNavItems = [
   { name: "Dashboard", href: "/" },
@@ -45,22 +51,34 @@ export default function Sidebar({
   if (isMobile && !open) return null;
 
   const navItems = React.useMemo(() => {
+    const role = effectiveUser?.role;
+
     // If we don't know the user yet (e.g. during initial load), fall back to
     // the base nav so something reasonable renders.
-    if (!effectiveUser?.role) {
+    if (!role) {
       return [...baseNavItems, { name: "Submit Request", href: "/request" }];
     }
 
-    const role = effectiveUser.role;
-
-    // ADMIN: full navigation including PM, requests inbox, technicians, users.
-    if (role === "ADMIN") {
+    // MASTER_ADMIN: full global navigation including Stores and Users.
+    if (isMasterAdmin(role)) {
       return [
         ...baseNavItems,
         { name: "Submit Request", href: "/request" },
         { name: "Requests", href: "/requests" },
         { name: "Technicians", href: "/technicians" },
         { name: "Users", href: "/users" },
+        { name: "Stores", href: "/stores" },
+      ];
+    }
+
+    // STORE_ADMIN (and any other admin-like non-master): store-scoped admin nav,
+    // but no global Stores or Users links.
+    if (isStoreAdmin(role) || isAdminLike(role)) {
+      return [
+        ...baseNavItems,
+        { name: "Submit Request", href: "/request" },
+        { name: "Requests", href: "/requests" },
+        { name: "Technicians", href: "/technicians" },
       ];
     }
 

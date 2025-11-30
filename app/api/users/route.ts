@@ -4,15 +4,22 @@ import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
+import { isAdminLike } from "@/lib/roles";
 
-const ALLOWED_ROLES = ["ADMIN", "TECHNICIAN"] as const;
+// Allow both new and legacy roles at the API layer; the UI only offers
+// MASTER_ADMIN, STORE_ADMIN, and TECHNICIAN.
+const ALLOWED_ROLES = [
+  "MASTER_ADMIN",
+  "STORE_ADMIN",
+  "ADMIN",
+  "TECHNICIAN",
+] as const;
 
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    const role = (session?.user as any)?.role;
 
-    if (!session || role !== "ADMIN") {
+    if (!session || !isAdminLike((session.user as any)?.role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -20,7 +27,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, email, password, role: requestedRole } = body ?? {};
+    const {
+      name,
+      email,
+      password,
+      role: requestedRole,
+      storeId: rawStoreId,
+    } = body ?? {};
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
@@ -75,13 +88,51 @@ export async function POST(req: NextRequest) {
     const normalizedRole =
       typeof requestedRole === "string"
         ? requestedRole.toUpperCase()
-        : "ADMIN";
+        : "TECHNICIAN";
 
-    const finalRole = ALLOWED_ROLES.includes(
+    const isAllowedRole = ALLOWED_ROLES.includes(
       normalizedRole as (typeof ALLOWED_ROLES)[number]
-    )
-      ? normalizedRole
-      : "ADMIN";
+    );
+
+    const finalRole = isAllowedRole ? normalizedRole : "TECHNICIAN";
+
+    // Determine and validate storeId based on role semantics.
+    let storeId: string | null = null;
+
+    if (finalRole === "MASTER_ADMIN") {
+      storeId = null;
+    } else if (finalRole === "STORE_ADMIN" || finalRole === "TECHNICIAN") {
+      const storeIdValue =
+        typeof rawStoreId === "string" && rawStoreId.trim().length > 0
+          ? rawStoreId.trim()
+          : null;
+
+      if (!storeIdValue) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Store is required for store admins and technicians.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const store = await prisma.store.findUnique({
+        where: { id: storeIdValue },
+      });
+
+      if (!store) {
+        return NextResponse.json(
+          { success: false, error: "Invalid store selected." },
+          { status: 400 }
+        );
+      }
+
+      storeId = store.id;
+    } else {
+      // Legacy ADMIN or any other admin-like role: keep store-less for now.
+      storeId = null;
+    }
 
     const hashedPassword = await bcrypt.hash(password.trim(), 10);
 
@@ -90,6 +141,7 @@ export async function POST(req: NextRequest) {
         email: email.trim(),
         password: hashedPassword,
         role: finalRole,
+        storeId,
       },
     });
 

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import Badge from "../../../components/ui/Badge";
+import { isAdminLike } from "@/lib/roles";
 
 function getPmStatus(nextDueDate: Date | null | undefined) {
   if (!nextDueDate) {
@@ -52,7 +53,7 @@ export default async function PmScheduleDetailPage({ params }: PageProps) {
   const technicianId = ((session.user as any)?.technicianId ?? null) as
     | string
     | null;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   // Technicians must not see any /pm routes.
   if (!isAdmin) {

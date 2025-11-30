@@ -2,6 +2,7 @@
 
 import { ReactNode } from "react";
 import { useSession } from "next-auth/react";
+import { isAdminLike } from "@/lib/roles";
 
 interface AdminOnlyProps {
   children: ReactNode;
@@ -17,7 +18,7 @@ export default function AdminOnly({ children }: AdminOnlyProps) {
   }
 
   const role = (session?.user as any)?.role;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   if (!isAdmin) {
     return null;

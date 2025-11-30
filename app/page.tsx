@@ -6,6 +6,13 @@ import Badge from "../components/ui/Badge";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import {
+  isAdminLike,
+  isTechnician as isTechnicianRole,
+  isMasterAdmin,
+} from "@/lib/roles";
+import { getScopedStoreId } from "@/lib/storeAccess";
+import StoreFilter from "@/components/StoreFilter";
 
 // Helper types/functions for date handling
 export type DateInput = string | Date | null | undefined;
@@ -35,12 +42,18 @@ const statusColors: Record<string, string> = {
   Cancelled: "bg-gray-100 text-gray-600",
 };
 
+type SearchParams = { [key: string]: string | string[] | undefined };
+
 function getTodayKey() {
   const now = new Date();
   return toDayKey(now);
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   // Role-aware dashboard: derive role and technicianId from the session
   const session = await getServerSession(authOptions);
 
@@ -50,17 +63,53 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const role = (session.user as any)?.role;
+  const role = (session.user as any)?.role as string | undefined;
   const technicianId = ((session.user as any)?.technicianId ?? null) as
     | string
     | null;
-  const isAdmin = role === "ADMIN";
-  const isTechnician = role === "TECHNICIAN";
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
+  const isAdmin = isAdminLike(role);
+  const isTechnician = isTechnicianRole(role);
+
+  const params = await searchParams;
+  const selectedStoreId =
+    typeof params.storeId === "string" && params.storeId.length > 0
+      ? params.storeId
+      : undefined;
+
+  const storeWhere: any = {};
+
+  if (isMasterAdmin(role)) {
+    if (selectedStoreId) {
+      storeWhere.storeId = selectedStoreId;
+    }
+  } else {
+    const scopedStoreId = getScopedStoreId(role, userStoreId);
+    if (scopedStoreId) {
+      storeWhere.storeId = scopedStoreId;
+    } else {
+      storeWhere.storeId = "__never_match__";
+    }
+  }
 
   // Get all needed data from Prisma
-  const [allWorkOrders, assets] = await Promise.all([
-    prisma.workOrder.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.asset.findMany({ orderBy: { name: "asc" } }),
+  const [allWorkOrders, assets, stores] = await Promise.all([
+    prisma.workOrder.findMany({
+      where: storeWhere,
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.asset.findMany({
+      where: storeWhere,
+      orderBy: { name: "asc" },
+    }),
+    isMasterAdmin(role)
+      ? prisma.store.findMany({
+          select: { id: true, name: true, code: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   // Role-scoped work orders:
@@ -167,6 +216,14 @@ export default async function DashboardPage() {
   // Render
   return (
     <div className="flex flex-col gap-4">
+      {isMasterAdmin(role) && stores.length > 0 && (
+        <div className="flex justify-end px-2">
+          <StoreFilter
+            stores={stores as any}
+            selectedStoreId={selectedStoreId ?? null}
+          />
+        </div>
+      )}
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4 md:gap-6">
         <KpiCard title="Open Work Orders" value={kpiOpen} />

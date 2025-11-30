@@ -5,10 +5,19 @@ import { redirect } from "next/navigation";
 import Table from "@/components/ui/Table";
 import { nanoid } from "nanoid";
 import Link from "next/link";
+import { isAdminLike, isMasterAdmin } from "@/lib/roles";
+import { getScopedStoreId, canSeeAllStores } from "@/lib/storeAccess";
+import StoreFilter from "@/components/StoreFilter";
 
 export const dynamic = "force-dynamic";
 
-export default async function RequestsPage() {
+type SearchParams = { [key: string]: string | string[] | undefined };
+
+export default async function RequestsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
   const session = await getServerSession(authOptions);
 
   if (!session) {
@@ -16,16 +25,49 @@ export default async function RequestsPage() {
   }
 
   const role = (session.user as any)?.role;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
 
   if (!isAdmin) {
     redirect("/workorders");
   }
 
-  const requests = await prisma.request.findMany({
-    orderBy: { createdAt: "desc" },
-    include: { asset: true },
-  });
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
+
+  const where: any = {};
+  const params = await searchParams;
+  const selectedStoreId =
+    typeof params.storeId === "string" && params.storeId.length > 0
+      ? params.storeId
+      : undefined;
+
+  if (isMasterAdmin(role)) {
+    if (selectedStoreId) {
+      where.storeId = selectedStoreId;
+    }
+  } else if (!canSeeAllStores(role)) {
+    const scopedStoreId = getScopedStoreId(role, userStoreId);
+    if (scopedStoreId) {
+      where.storeId = scopedStoreId;
+    } else {
+      where.storeId = "__never_match__";
+    }
+  }
+
+  const [requests, stores] = await Promise.all([
+    prisma.request.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: { asset: true },
+    }),
+    isMasterAdmin(role)
+      ? prisma.store.findMany({
+          select: { id: true, name: true, code: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
@@ -36,6 +78,13 @@ export default async function RequestsPage() {
             Approve, reject, or convert maintenance requests into work orders.
           </p>
         </div>
+        {isMasterAdmin(role) && stores.length > 0 && (
+          <StoreFilter
+            stores={stores as any}
+            selectedStoreId={selectedStoreId ?? null}
+            label="Store"
+          />
+        )}
       </div>
 
       {requests.length === 0 ? (
@@ -134,7 +183,7 @@ export async function approveRequest(formData: FormData) {
   "use server";
 
   const session = await getServerSession(authOptions);
-  if (session?.user?.role !== "ADMIN") redirect("/workorders");
+  if (!isAdminLike((session?.user as any)?.role)) redirect("/workorders");
 
   const requestId = formData.get("requestId") as string | null;
   if (!requestId) {
@@ -153,7 +202,7 @@ export async function rejectRequest(formData: FormData) {
   "use server";
 
   const session = await getServerSession(authOptions);
-  if (session?.user?.role !== "ADMIN") redirect("/workorders");
+  if (!isAdminLike((session?.user as any)?.role)) redirect("/workorders");
 
   const requestId = formData.get("requestId") as string | null;
   if (!requestId) {
@@ -172,7 +221,7 @@ export async function convertRequestToWorkOrder(formData: FormData) {
   "use server";
 
   const session = await getServerSession(authOptions);
-  if (session?.user?.role !== "ADMIN") redirect("/workorders");
+  if (!isAdminLike((session?.user as any)?.role)) redirect("/workorders");
 
   const requestId = formData.get("requestId") as string | null;
   if (!requestId) {

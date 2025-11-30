@@ -1,15 +1,25 @@
+"use client";
+
 import Link from "next/link";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+
+type Status = "Open" | "In Progress" | "Completed" | "Cancelled";
 
 export default function WorkOrderDetails({
   workOrder,
   asset,
   technicianMap = {},
   isAdmin = false,
+  isTechnician = false,
+  currentTechnicianId,
 }: {
   workOrder: any; // can be replaced with your real WorkOrder type
   asset?: any;
   technicianMap?: Record<string, string>;
   isAdmin?: boolean;
+  isTechnician?: boolean;
+  currentTechnicianId?: string | null;
 }) {
   const title: string = workOrder.title ?? "";
   const isPm = title.startsWith("PM:");
@@ -61,6 +71,98 @@ export default function WorkOrderDetails({
     (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
   );
 
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const [status, setStatus] = useState<Status>(workOrder.status);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
+  const [noteText, setNoteText] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
+
+  const canTechnicianAct =
+    !!isTechnician &&
+    !!currentTechnicianId &&
+    (workOrder.assignedToId === currentTechnicianId ||
+      workOrder.assignedTo?.id === currentTechnicianId);
+
+  async function handleTechnicianStatusChange(nextStatus: Status) {
+    if (!canTechnicianAct) return;
+    if (nextStatus === status) return;
+
+    setStatusSaving(true);
+    setStatusError(null);
+    try {
+      const res = await fetch(`/api/workorders/${workOrder.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+
+      if (!res.ok) {
+        let message = "Failed to update status.";
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch {
+          // ignore
+        }
+        setStatusError(message);
+        return;
+      }
+
+      setStatus(nextStatus);
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      setStatusError("Network error while updating status.");
+    } finally {
+      setStatusSaving(false);
+    }
+  }
+
+  async function handleAddNote() {
+    if (!canTechnicianAct) return;
+    if (!noteText.trim()) return;
+
+    setNoteSaving(true);
+    setNoteError(null);
+    try {
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workOrderId: workOrder.id,
+          text: noteText.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        let message = "Failed to add note.";
+        try {
+          const data = await res.json();
+          if (data?.error) message = data.error;
+        } catch {
+          // ignore
+        }
+        setNoteError(message);
+        return;
+      }
+
+      setNoteText("");
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      setNoteError("Network error while adding note.");
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
   return (
     <div className="flex flex-col space-y-3 sm:gap-3 text-sm">
       {/* Header + Edit button */}
@@ -102,10 +204,32 @@ export default function WorkOrderDetails({
       {/* Main details */}
       <dl className="grid grid-cols-2 gap-y-3 gap-x-4 sm:gap-x-8">
         <dt className="font-medium text-gray-500">Status</dt>
-        <dd>
+        <dd className="space-y-1">
           <span className="inline-block px-2 py-1 text-xs font-semibold rounded bg-orange-50 text-orange-700 capitalize">
-            {workOrder.status}
+            {status}
           </span>
+          {canTechnicianAct && (
+            <div className="mt-1 flex flex-wrap gap-1 text-[11px]">
+              {["Open", "In Progress", "Completed"].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => handleTechnicianStatusChange(s as Status)}
+                  disabled={statusSaving || status === s}
+                  className={`px-2 py-0.5 rounded border text-[11px] ${
+                    status === s
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+          {statusError && (
+            <div className="text-[11px] text-red-600 mt-1">{statusError}</div>
+          )}
         </dd>
 
         <dt className="font-medium text-gray-500">Priority</dt>
@@ -215,6 +339,35 @@ export default function WorkOrderDetails({
           </div>
         )}
       </div>
+
+      {/* Technician notes input (assigned technician only) */}
+      {canTechnicianAct && (
+        <div className="mt-4 border-t border-gray-100 pt-3 space-y-2">
+          <div className="text-xs font-medium text-gray-600">
+            Add note (visible to admins and other viewers)
+          </div>
+          {noteError && (
+            <div className="text-[11px] text-red-600">{noteError}</div>
+          )}
+          <textarea
+            className="w-full border rounded px-2 py-1 text-xs sm:text-sm"
+            rows={3}
+            placeholder="What did you do, what did you find, or what is blocked?"
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleAddNote}
+              disabled={noteSaving || !noteText.trim()}
+              className="px-3 py-1.5 rounded bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-60"
+            >
+              {noteSaving ? "Saving..." : "Add Note"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Asset summary */}
       {asset && (
