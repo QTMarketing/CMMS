@@ -473,16 +473,7 @@ export default function WorkOrdersPage() {
                   <div className="flex items-center gap-2">
                     <ViewWorkOrderButton id={w.id} />
                     {isAdmin && <EditWorkOrderButton id={w.id} />}
-                    {isAdmin && (
-                      <DeleteWorkOrderButton
-                        id={w.id}
-                        onDeleted={() =>
-                          setTableOrders((prev) =>
-                            prev.filter((wo) => wo.id !== w.id)
-                          )
-                        }
-                      />
-                    )}
+                    {isAdmin && <DeleteWorkOrderButton id={w.id} />}
                   </div>
                 </td>
               </tr>

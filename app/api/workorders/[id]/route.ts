@@ -230,6 +230,18 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    const sessionUser = session?.user as any;
+    const role = sessionUser?.role as string | undefined;
+    const userStoreId = (sessionUser?.storeId ?? null) as string | null;
+
+    if (!session || !isAdminLike(role)) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
 
     const existing = await prisma.workOrder.findUnique({
@@ -240,6 +252,15 @@ export async function DELETE(
       return NextResponse.json(
         { success: false, error: "Work order not found" },
         { status: 404 }
+      );
+    }
+
+    // Optional safety: ensure store-scoped admins cannot delete work orders
+    // outside their store. MASTER_ADMIN (canSeeAllStores) is unrestricted.
+    if (role === "STORE_ADMIN" && existing.storeId && existing.storeId !== userStoreId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 }
       );
     }
 
