@@ -1,18 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Badge from "../../components/ui/Badge";
 import Table from "../../components/ui/Table";
 import AddInventoryDrawer from "./components/AddInventoryDrawer";
 import StoreFilter from "@/components/StoreFilter";
+import { isAdminLike } from "@/lib/roles";
 
 export default function InventoryPage() {
+  const router = useRouter();
+  const { data: session } = useSession();
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [inventory, setInventory] = useState([]);
   const [stores, setStores] = useState<any[]>([]);
   const searchParams = useSearchParams();
   const selectedStoreId = searchParams.get("storeId") || "";
+  const role = (session?.user as any)?.role as string | undefined;
+  const isAdmin = isAdminLike(role);
 
   useEffect(() => {
     const qs = selectedStoreId
@@ -95,11 +101,12 @@ export default function InventoryPage() {
           "Threshold",
           "Location",
           "Low Stock",
+          "Actions",
         ]}
       >
         {filtered.length === 0 ? (
           <tr>
-            <td colSpan={7} className="py-6 text-center text-gray-400">
+            <td colSpan={8} className="py-6 text-center text-gray-400">
               No inventory items found.
             </td>
           </tr>
@@ -119,6 +126,48 @@ export default function InventoryPage() {
                 {item.lowStock ? (
                   <Badge colorClass="bg-red-100 text-red-600">LOW</Badge>
                 ) : null}
+              </td>
+              <td className="px-4 py-2 text-right">
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const confirmed = window.confirm(
+                        "Delete this inventory item? This cannot be undone."
+                      );
+                      if (!confirmed) return;
+
+                      try {
+                        const res = await fetch(
+                          `/api/inventory/${encodeURIComponent(item.id)}`,
+                          { method: "DELETE" }
+                        );
+
+                        if (!res.ok) {
+                          const data = await res
+                            .json()
+                            .catch(() => ({}));
+                          window.alert(
+                            `Failed to delete inventory item: ${
+                              data.error ?? "Unknown error"
+                            }`
+                          );
+                          return;
+                        }
+
+                        router.refresh();
+                      } catch (err) {
+                        console.error("Failed to delete inventory item", err);
+                        window.alert("Failed to delete inventory item.");
+                      }
+                    }}
+                    className="text-slate-400 hover:text-red-500"
+                    aria-label="Delete inventory item"
+                  >
+                    🗑
+                  </button>
+                )}
               </td>
             </tr>
           ))

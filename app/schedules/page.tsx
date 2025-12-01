@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import Table from "../../components/ui/Table";
 import Badge from "../../components/ui/Badge";
 import AdminOnly from "@/components/auth/AdminOnly";
@@ -26,6 +27,7 @@ function getScheduleMeta(nextDueDate: DateInput) {
 }
 
 export default function SchedulesPage() {
+  const router = useRouter();
   const [schedules, setSchedules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,12 +120,21 @@ export default function SchedulesPage() {
       </div>
       {error && <div className="text-red-500">{error}</div>}
       <Table
-        headers={["ID", "Title", "Asset", "Frequency", "Next Due Date", "Status", "Days Until Due"]}
+        headers={[
+          "ID",
+          "Title",
+          "Asset",
+          "Frequency",
+          "Next Due Date",
+          "Status",
+          "Days Until Due",
+          "Actions",
+        ]}
       >
         {loading ? (
           <tr><td colSpan={7} className="py-5 text-center text-gray-400">Loading...</td></tr>
         ) : schedules.length === 0 ? (
-          <tr><td colSpan={7} className="py-6 text-center text-gray-300">No schedules found.</td></tr>
+          <tr><td colSpan={8} className="py-6 text-center text-gray-300">No schedules found.</td></tr>
         ) : (
           schedules.map((s) => {
             const { status, daysUntilDue } = getScheduleMeta(s.nextDueDate);
@@ -140,6 +151,44 @@ export default function SchedulesPage() {
                   </Badge>
                 </td>
                 <td className="px-4 py-2">{daysUntilDue}</td>
+                <td className="px-4 py-2 text-right">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const confirmed = window.confirm(
+                        "Delete this PM schedule? This cannot be undone."
+                      );
+                      if (!confirmed) return;
+
+                      try {
+                        const res = await fetch(
+                          `/api/schedules/${encodeURIComponent(s.id)}`,
+                          { method: "DELETE" }
+                        );
+
+                        if (!res.ok) {
+                          const data = await res.json().catch(() => ({}));
+                          alert(
+                            `Failed to delete PM schedule: ${
+                              data.error ?? "Unknown error"
+                            }`
+                          );
+                          return;
+                        }
+
+                        await fetchSchedules();
+                        router.refresh();
+                      } catch (err) {
+                        console.error("Failed to delete PM schedule", err);
+                        alert("Failed to delete PM schedule.");
+                      }
+                    }}
+                    className="text-slate-400 hover:text-red-500"
+                    aria-label="Delete PM schedule"
+                  >
+                    🗑
+                  </button>
+                </td>
               </tr>
             );
           })

@@ -7,6 +7,7 @@ import Badge from "../../components/ui/Badge";
 import Table from "../../components/ui/Table";
 import AddAssetDrawer from "./components/AddAssetDrawer";
 import StoreFilter from "@/components/StoreFilter";
+import { isAdminLike } from "@/lib/roles";
 
 const statusColors: Record<string, string> = {
   Active: "bg-green-100 text-green-600",
@@ -42,6 +43,8 @@ export default function AssetsPage() {
   const [stores, setStores] = useState<any[]>([]);
   const searchParams = useSearchParams();
   const selectedStoreId = searchParams.get("storeId") || "";
+  const role = (session?.user as any)?.role as string | undefined;
+  const isAdmin = isAdminLike(role);
 
   useEffect(() => {
     const qs = selectedStoreId
@@ -150,6 +153,7 @@ export default function AssetsPage() {
           "Total WOs",
           "Open WOs",
           "PM",
+          "Actions",
         ]}
       >
         {sorted.length === 0 ? (
@@ -177,7 +181,7 @@ export default function AssetsPage() {
               }
             }
             return (
-              <tr
+          <tr
                 key={a.id}
                 className={
                   `hover:bg-gray-50 cursor-pointer transition` +
@@ -221,6 +225,46 @@ export default function AssetsPage() {
                     >
                       {pmLabel}
                     </span>
+                  )}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const confirmed = window.confirm(
+                          "Delete this asset? This cannot be undone."
+                        );
+                        if (!confirmed) return;
+
+                        try {
+                          const res = await fetch(
+                            `/api/assets/${encodeURIComponent(a.id)}`,
+                            { method: "DELETE" }
+                          );
+
+                          if (!res.ok) {
+                            const data = await res.json().catch(() => ({}));
+                            window.alert(
+                              `Failed to delete asset: ${
+                                data.error ?? "Unknown error"
+                              }`
+                            );
+                            return;
+                          }
+
+                          router.refresh();
+                        } catch (err) {
+                          console.error("Failed to delete asset", err);
+                          window.alert("Failed to delete asset.");
+                        }
+                      }}
+                      className="text-slate-400 hover:text-red-500"
+                      aria-label="Delete asset"
+                    >
+                      🗑
+                    </button>
                   )}
                 </td>
               </tr>

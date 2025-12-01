@@ -5,9 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike } from "@/lib/roles";
 
-// Placeholder GET handler (not used for now).
-export async function GET() {}
-
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -27,13 +24,13 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const existing = await prisma.asset.findUnique({
+    const existing = await prisma.preventiveSchedule.findUnique({
       where: { id },
     });
 
     if (!existing) {
       return NextResponse.json(
-        { success: false, error: "Asset not found" },
+        { success: false, error: "PM schedule not found" },
         { status: 404 }
       );
     }
@@ -45,16 +42,18 @@ export async function DELETE(
       );
     }
 
-    await prisma.asset.delete({
+    await prisma.preventiveSchedule.delete({
       where: { id },
     });
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {
-    console.error("[assets DELETE] Failed", err);
+    console.error("[schedules DELETE] Failed", err);
     return NextResponse.json(
-      { success: false, error: "Failed to delete asset" },
+      { success: false, error: "Failed to delete PM schedule" },
       { status: 500 }
     );
   }
 }
+
+
