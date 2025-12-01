@@ -73,11 +73,41 @@ export default function UsersTableClient({ initialUsers }: Props) {
     }
   }
 
-  function handleResetPasswordClick(email: string) {
-    // Placeholder behavior for now
-    window.alert(
-      `Password reset functionality for ${email} will be added in a future phase.`
+  async function handleResetPasswordClick(user: UserRow) {
+    const newPassword = window.prompt(
+      `Enter a new password for ${user.email} (min 6 characters):`
     );
+
+    if (newPassword == null) return; // user cancelled
+
+    if (newPassword.length < 6) {
+      window.alert("Password must be at least 6 characters.");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/users/${encodeURIComponent(user.id)}/reset-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newPassword }),
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        window.alert(
+          `Failed to reset password: ${data.error ?? "Unknown error"}`
+        );
+        return;
+      }
+
+      window.alert(`Password for ${user.email} has been reset successfully.`);
+    } catch (err) {
+      console.error("Error resetting password", err);
+      window.alert("Unexpected error while resetting password.");
+    }
   }
 
   return (
@@ -137,7 +167,7 @@ export default function UsersTableClient({ initialUsers }: Props) {
                 <td className="px-4 py-3 text-sm">
                   <button
                     type="button"
-                    onClick={() => handleResetPasswordClick(user.email)}
+                    onClick={() => handleResetPasswordClick(user)}
                     className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                   >
                     Reset Password

@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike } from "@/lib/roles";
+import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -13,7 +14,11 @@ export async function POST() {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session || !isAdminLike((session.user as any)?.role)) {
+    const sessionUser = session?.user as any;
+    const role = sessionUser?.role as string | undefined;
+    const userStoreId = (sessionUser?.storeId ?? null) as string | null;
+
+    if (!session || !isAdminLike(role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -22,14 +27,28 @@ export async function POST() {
 
     const today = startOfDay(new Date());
 
-    // Find active PM schedules that are due or overdue
-    const dueSchedules = await prisma.preventiveSchedule.findMany({
-      where: {
-        active: true,
-        nextDueDate: {
-          lte: today,
-        },
+    const where: any = {
+      active: true,
+      nextDueDate: {
+        lte: today,
       },
+    };
+
+    // MASTER_ADMIN can operate across stores; STORE_ADMIN is scoped to
+    // their own storeId.
+    if (!canSeeAllStores(role)) {
+      const scopedStoreId = getScopedStoreId(role, userStoreId);
+      if (scopedStoreId) {
+        where.storeId = scopedStoreId;
+      } else {
+        // No associated store; nothing should be processed.
+        where.storeId = "__never_match__";
+      }
+    }
+
+    // Find active PM schedules that are due or overdue (scoped above).
+    const dueSchedules = await prisma.preventiveSchedule.findMany({
+      where,
       include: {
         asset: true,
       },
@@ -48,13 +67,16 @@ export async function POST() {
       });
 
       if (!existingOpen) {
-        // Create the PM work order for this schedule
+        // Create the PM work order for this schedule. Make sure the work order
+        // is correctly tied to the same store (falling back to the asset's
+        // store if needed) so store-scoped dashboards can see it.
         await prisma.workOrder.create({
           data: {
             id: crypto.randomUUID(),
             title: `PM: ${schedule.title}`,
             description: null,
             assetId: schedule.assetId,
+            storeId: schedule.storeId ?? schedule.asset.storeId ?? null,
             status: "Open",
             priority: "Medium",
             dueDate: schedule.nextDueDate,
@@ -85,7 +107,7 @@ export async function POST() {
 
     return NextResponse.json({
       ok: true,
-      generated: generatedCount,
+      created: generatedCount,
       processed: dueSchedules.length,
     });
   } catch (err) {

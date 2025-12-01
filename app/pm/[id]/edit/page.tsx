@@ -45,7 +45,7 @@ async function updatePmSchedule(id: string, formData: FormData) {
 }
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function EditPmSchedulePage({ params }: PageProps) {
@@ -62,7 +62,7 @@ export default async function EditPmSchedulePage({ params }: PageProps) {
     redirect("/workorders");
   }
 
-  const id = params.id;
+  const { id } = await params;
 
   const pm = await prisma.preventiveSchedule.findUnique({
     where: { id },

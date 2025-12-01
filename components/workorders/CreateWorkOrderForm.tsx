@@ -1,4 +1,5 @@
 import { useState, useEffect, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 interface StoreOption {
   id: string;
@@ -23,6 +24,7 @@ export default function CreateWorkOrderForm({
   stores,
   currentStoreId,
 }: Props) {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [assetId, setAssetId] = useState("");
   const [priority, setPriority] = useState("Medium");
@@ -100,6 +102,7 @@ export default function CreateWorkOrderForm({
       // or a table reload is triggered.
       startTransition(() => {
         onSuccess(data.data);
+        router.refresh();
       });
     } catch (e) {
       setError("Unexpected error.");

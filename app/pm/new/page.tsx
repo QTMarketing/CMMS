@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { isAdminLike } from "@/lib/roles";
+import { nanoid } from "nanoid";
 
 async function createPmSchedule(formData: FormData) {
   "use server";
@@ -15,6 +16,10 @@ async function createPmSchedule(formData: FormData) {
   if (!isAdmin) {
     redirect("/workorders");
   }
+
+  const userStoreId = ((session?.user as any)?.storeId ?? null) as
+    | string
+    | null;
 
   const title = (formData.get("title") as string | null)?.trim() ?? "";
   const assetId = (formData.get("assetId") as string | null)?.trim() ?? "";
@@ -33,11 +38,15 @@ async function createPmSchedule(formData: FormData) {
 
   await prisma.preventiveSchedule.create({
     data: {
+      id: nanoid(),
       title,
       assetId,
       frequencyDays,
       nextDueDate: new Date(nextDueDateRaw),
       active: activeRaw === "on" || activeRaw === "true",
+      // Scope schedules by store for store-scoped roles; MASTER_ADMIN
+      // will typically have storeId = null and see all schedules.
+      storeId: userStoreId,
     },
   });
 

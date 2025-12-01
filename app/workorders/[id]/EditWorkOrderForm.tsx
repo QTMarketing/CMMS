@@ -44,6 +44,11 @@ export default function EditWorkOrderForm({ workOrder }: Props) {
   const [priority, setPriority] = useState<WorkOrderPriority>(
     workOrder.priority
   );
+  const [dueDate, setDueDate] = useState<string>(
+    workOrder.dueDate
+      ? new Date(workOrder.dueDate).toISOString().slice(0, 10)
+      : ""
+  );
   const [assignedToId, setAssignedToId] = useState<string | null>(
     workOrder.assignedTo?.id ?? null
   );
@@ -85,6 +90,7 @@ export default function EditWorkOrderForm({ workOrder }: Props) {
           status,
           priority,
           assignedTo: assignedToId ?? "",
+          dueDate: dueDate || null,
           description,
         }),
       });
@@ -199,6 +205,19 @@ export default function EditWorkOrderForm({ workOrder }: Props) {
               <option value="Medium">Medium</option>
               <option value="High">High</option>
             </select>
+          </div>
+
+          {/* Due Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-1">
+              Due Date
+            </label>
+            <input
+              type="date"
+              className="w-full border rounded px-3 py-2 text-sm"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
           </div>
 
           {/* Assigned To */}

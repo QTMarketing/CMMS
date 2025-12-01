@@ -16,6 +16,7 @@ const baseNavItems = [
   { name: "Assets", href: "/assets" },
   { name: "Inventory", href: "/inventory" },
   { name: "Schedules", href: "/schedules" },
+  { name: "PM Schedules", href: "/pm" },
 ];
 
 type SidebarUser = {

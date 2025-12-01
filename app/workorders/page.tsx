@@ -106,19 +106,39 @@ export default function WorkOrdersPage() {
     { id: string; name: string; code?: string | null }[]
   >([]);
   const [isRefreshing, startTransition] = useTransition();
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
 
   // --------- Load data ---------
   useEffect(() => {
-    const qs =
+    const params = new URLSearchParams();
+
+    if (isMaster && selectedStoreId) {
+      params.set("storeId", selectedStoreId);
+    }
+
+    if (fromDate) {
+      params.set("from", fromDate);
+    }
+    if (toDate) {
+      params.set("to", toDate);
+    }
+
+    const workOrdersQuery = params.toString();
+    const workOrdersUrl = `/api/workorders${
+      workOrdersQuery ? `?${workOrdersQuery}` : ""
+    }`;
+
+    const storeScopedQuery =
       isMaster && selectedStoreId
         ? `?storeId=${encodeURIComponent(selectedStoreId)}`
         : "";
 
-    fetch(`/api/workorders${qs}`, { cache: "no-store" })
+    fetch(workOrdersUrl, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => setTableOrders(data.data || []));
 
-    fetch(`/api/assets${qs}`, { cache: "no-store" })
+    fetch(`/api/assets${storeScopedQuery}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) =>
         setAssets(Array.isArray(data) ? data : data.data || [])
@@ -140,7 +160,7 @@ export default function WorkOrdersPage() {
           // swallow; filter will simply not render
         });
     }
-  }, [isMaster, selectedStoreId]);
+  }, [isMaster, selectedStoreId, fromDate, toDate]);
 
   // For technicians, default My Tasks to ON (focus on active queue) once the
   // role information is available. Admins keep My Tasks off by default.
@@ -265,6 +285,36 @@ export default function WorkOrdersPage() {
 
       {/* Filters row (Status, Priority, Technician, Search) */}
       <div className="flex flex-wrap gap-4 items-center text-sm">
+        {/* Due Date Range */}
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-gray-600">Due between:</span>
+          <input
+            type="date"
+            className="border rounded px-2 py-1"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+          <span className="text-gray-400">–</span>
+          <input
+            type="date"
+            className="border rounded px-2 py-1"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+          />
+          {(fromDate || toDate) && (
+            <button
+              type="button"
+              className="text-xs text-gray-500 underline"
+              onClick={() => {
+                setFromDate("");
+                setToDate("");
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
         {/* Status */}
         <div className="flex items-center gap-2">
           <span className="font-medium text-gray-600">Status:</span>
@@ -423,7 +473,16 @@ export default function WorkOrdersPage() {
                   <div className="flex items-center gap-2">
                     <ViewWorkOrderButton id={w.id} />
                     {isAdmin && <EditWorkOrderButton id={w.id} />}
-                    {isAdmin && <DeleteWorkOrderButton id={w.id} />}
+                    {isAdmin && (
+                      <DeleteWorkOrderButton
+                        id={w.id}
+                        onDeleted={() =>
+                          setTableOrders((prev) =>
+                            prev.filter((wo) => wo.id !== w.id)
+                          )
+                        }
+                      />
+                    )}
                   </div>
                 </td>
               </tr>
@@ -455,10 +514,8 @@ export default function WorkOrdersPage() {
           onSuccess={(newWorkOrder) => {
             // Close the drawer
             setShowCreate(false);
-            // Refresh server-driven data (dashboard, lists, etc.)
-            startTransition(() => {
-              router.refresh();
-            });
+            // Optimistically add the new work order to the current table rows
+            setTableOrders((prev) => [newWorkOrder, ...prev]);
           }}
           onCancel={() => setShowCreate(false)}
         />

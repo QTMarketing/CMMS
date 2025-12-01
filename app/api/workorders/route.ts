@@ -10,6 +10,7 @@ import {
   isMasterAdmin,
 } from "@/lib/roles";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
+import { sendWorkOrderAssignedEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -29,7 +30,10 @@ export async function GET(req: NextRequest) {
     | string
     | null;
 
-  const urlStoreId = req.nextUrl.searchParams.get("storeId") || null;
+  const searchParams = req.nextUrl.searchParams;
+  const urlStoreId = searchParams.get("storeId") || null;
+  const rawFrom = searchParams.get("from");
+  const rawTo = searchParams.get("to");
 
   const where: any = {};
 
@@ -55,6 +59,36 @@ export async function GET(req: NextRequest) {
     } else {
       where.assignedToId = technicianId;
     }
+  }
+
+  // Optional dueDate range filter (from/to). We treat incoming values as
+  // date-only when possible (YYYY-MM-DD) and normalize them to a UTC
+  // start-of-day / end-of-day range so they line up with how due dates are stored.
+  const parseBoundary = (value: string | null, type: "start" | "end") => {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+
+    // If the client sent a full ISO string, use it as-is.
+    if (trimmed.includes("T")) {
+      const d = new Date(trimmed);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    }
+
+    const suffix =
+      type === "start" ? "T00:00:00.000Z" : "T23:59:59.999Z";
+    const d = new Date(`${trimmed}${suffix}`);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  };
+
+  const fromDate = parseBoundary(rawFrom, "start");
+  const toDate = parseBoundary(rawTo, "end");
+
+  if (fromDate || toDate) {
+    where.dueDate = {
+      ...(fromDate ? { gte: fromDate } : {}),
+      ...(toDate ? { lte: toDate } : {}),
+    };
   }
 
   const result = await prisma.workOrder.findMany({
@@ -126,12 +160,6 @@ export async function POST(request: Request) {
         );
       }
     }
-    if (dueDate && isNaN(Date.parse(dueDate))) {
-      return NextResponse.json(
-        { success: false, error: "Invalid due date." },
-        { status: 400 }
-      );
-    }
     if (!["Low", "Medium", "High"].includes(priority)) {
       return NextResponse.json(
         { success: false, error: "Invalid priority." },
@@ -182,6 +210,21 @@ export async function POST(request: Request) {
       );
     }
 
+    // Normalize dueDate: expect "YYYY-MM-DD" string from the client and
+    // convert it to a Date at noon UTC to avoid off-by-one issues.
+    let normalizedDueDate: Date | undefined;
+    if (typeof dueDate === "string" && dueDate.trim().length > 0) {
+      const iso = `${dueDate.trim()}T12:00:00.000Z`;
+      const ms = Date.parse(iso);
+      if (Number.isNaN(ms)) {
+        return NextResponse.json(
+          { success: false, error: "Invalid due date." },
+          { status: 400 }
+        );
+      }
+      normalizedDueDate = new Date(ms);
+    }
+
     const newWorkOrder = await prisma.workOrder.create({
       data: {
         id: nanoid(),
@@ -191,11 +234,58 @@ export async function POST(request: Request) {
         status: "Open",
         assignedToId: assignedTo || undefined,
         createdAt: new Date(),
-        dueDate: dueDate ? new Date(dueDate) : undefined,
+        dueDate: normalizedDueDate,
         description: description || undefined,
         storeId: finalStoreId,
       },
     });
+
+    if (newWorkOrder.assignedToId) {
+      try {
+        const technician = await prisma.technician.findUnique({
+          where: { id: newWorkOrder.assignedToId },
+          select: {
+            email: true,
+            name: true,
+            store: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        });
+
+        if (technician?.email) {
+          const store =
+            newWorkOrder.storeId &&
+            (await prisma.store.findUnique({
+              where: { id: newWorkOrder.storeId },
+              select: { name: true },
+            }));
+
+          const dueDateString = newWorkOrder.dueDate
+            ? newWorkOrder.dueDate.toLocaleString()
+            : undefined;
+
+          await sendWorkOrderAssignedEmail({
+            technicianEmail: technician.email,
+            technicianName: technician.name || undefined,
+            workOrderId: newWorkOrder.id,
+            storeName:
+              technician.store?.name || store?.name || undefined,
+            title: newWorkOrder.title,
+            description: newWorkOrder.description || undefined,
+            dueDate: dueDateString,
+          });
+        }
+      } catch (error) {
+        console.error(
+          "[workorders] Failed to send work order assignment email on create",
+          error
+        );
+      }
+    }
+
     return NextResponse.json(
       { success: true, data: newWorkOrder },
       { status: 201 }

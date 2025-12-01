@@ -57,12 +57,24 @@ export default function SchedulesPage() {
     setRunning(true);
     try {
       const res = await fetch("/api/pm/generate-due", { method: "POST" });
-      if (res.ok) {
-        alert("Generated work orders for due schedules.");
-        await fetchSchedules();
-      } else {
-        alert("Failed to generate work orders.");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(
+          `Failed to generate work orders: ${data.error ?? "Unknown error"}`
+        );
+        return;
       }
+
+      const data = await res.json().catch(() => ({}));
+      const created =
+        typeof data.created === "number"
+          ? data.created
+          : typeof data.generated === "number"
+          ? data.generated
+          : 0;
+
+      alert(`Generated ${created} work order(s) for due PM schedules.`);
+      await fetchSchedules();
     } catch (err) {
       console.error("Error calling /api/pm/generate-due:", err);
       alert("Failed to generate work orders.");
