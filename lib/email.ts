@@ -120,4 +120,50 @@ export async function sendRequestSubmittedEmail(options: {
   });
 }
 
+export async function sendWorkOrderUpdateEmail(options: {
+  userEmail: string;
+  userName?: string;
+  workOrderId: string;
+  workOrderTitle?: string;
+  updateMessage?: string;
+  status?: string;
+}): Promise<void> {
+  const {
+    userEmail,
+    userName,
+    workOrderId,
+    workOrderTitle,
+    updateMessage,
+    status,
+  } = options;
+
+  const lines: string[] = [];
+
+  lines.push(
+    `<p>Hi ${userName ? userName : "there"},</p>`
+  );
+  lines.push("<p>Your work order has been updated.</p>");
+  lines.push(`<p><strong>Work Order ID:</strong> ${workOrderId}</p>`);
+
+  if (workOrderTitle) {
+    lines.push(`<p><strong>Title:</strong> ${workOrderTitle}</p>`);
+  }
+
+  if (status) {
+    lines.push(`<p><strong>Status:</strong> ${status}</p>`);
+  }
+
+  if (updateMessage) {
+    lines.push(`<p><strong>Update:</strong> ${updateMessage}</p>`);
+  }
+
+  const html = lines.join("");
+
+  await sendEmail({
+    to: userEmail,
+    subject: `Work Order Updated (#${workOrderId})`,
+    html,
+  });
+}
+
 

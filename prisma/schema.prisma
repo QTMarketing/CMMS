@@ -30,6 +30,7 @@ model Technician {
   email  String
   phone  String?
   active Boolean @default(true)
+  status String  @default("offline") // "offline" | "online" | "work_assigned"
 
   // Multi-store: optional store this technician belongs to.
   storeId String?
@@ -40,14 +41,20 @@ model Technician {
 }
 
 model WorkOrder {
-  id          String    @id
-  title       String
-  description String?
-  priority    String // "Low" | "Medium" | "High"
-  status      String // "Open" | "In Progress" | "Completed" | "Cancelled"
-  createdAt   DateTime  @default(now())
-  dueDate     DateTime?
-  completedAt DateTime?
+  id           String       @id
+  title        String
+  description  String?
+  location     String?      // Location of the issue
+  partsRequired Boolean     @default(false) // Whether parts are required
+  problemDescription String? // "Where or What is the problem?"
+  helpDescription String?   // "How can we help?"
+  attachments  String[]     @default([]) // Array of file URLs (images/videos)
+  priority     String       // "Low" | "Medium" | "High"
+  status       String       // "Open" | "In Progress" | "Completed" | "Cancelled"
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  dueDate      DateTime?
+  completedAt  DateTime?
 
   // Multi-store: optional store that owns this work order.
   storeId String?
@@ -58,6 +65,10 @@ model WorkOrder {
 
   assignedToId String?
   assignedTo   Technician? @relation("TechnicianWorkOrders", fields: [assignedToId], references: [id])
+
+  // Track who created the work order (for USER role notifications)
+  createdById String?
+  createdBy   User?   @relation("WorkOrderCreator", fields: [createdById], references: [id])
 
   notes Note[]
 }
@@ -113,6 +124,7 @@ model User {
   technician   Technician? @relation("UserTechnician", fields: [technicianId], references: [id])
   accounts     Account[]
   sessions     Session[]
+  createdWorkOrders WorkOrder[] @relation("WorkOrderCreator")
 }
 
 model Request {

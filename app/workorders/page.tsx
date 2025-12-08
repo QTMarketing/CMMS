@@ -2,11 +2,9 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Table from "../../components/ui/Table";
-import Badge from "../../components/ui/Badge";
+import { useRouter } from "next/navigation";
 import Drawer from "../../components/ui/Drawer";
 import WorkOrderDetails from "../../components/workorders/WorkOrderDetails";
 import CreateWorkOrderForm from "../../components/workorders/CreateWorkOrderForm";
@@ -16,8 +14,15 @@ import EditWorkOrderButton from "./EditWorkOrderButton";
 import ViewWorkOrderButton from "./ViewWorkOrderButton";
 import DeleteWorkOrderButton from "./DeleteWorkOrderButton";
 import AdminOnly from "@/components/auth/AdminOnly";
-import { isAdminLike, isTechnician as isTechnicianRole } from "@/lib/roles";
-import StoreFilter from "@/components/StoreFilter";
+import DashboardHeader, {
+  DashboardSearchItem,
+} from "@/components/dashboard/DashboardHeader";
+import {
+  Search,
+  Filter,
+  ChevronDown,
+  CalendarRange,
+} from "lucide-react";
 
 // --- Type definitions for API objects ---
 interface Technician {
@@ -38,16 +43,16 @@ const statusOptions = [
 const priorityOptions = ["All", "High", "Medium", "Low"] as const;
 
 const priorityColors: Record<string, string> = {
-  High: "bg-orange-100 text-orange-700",
-  Medium: "bg-yellow-100 text-yellow-700",
-  Low: "bg-green-100 text-green-700",
+  High: "bg-red-100 text-red-800",
+  Medium: "bg-yellow-100 text-yellow-800",
+  Low: "bg-gray-100 text-gray-800",
 };
 
 const statusColors: Record<string, string> = {
-  Open: "bg-orange-50 text-orange-700",
-  "In Progress": "bg-blue-50 text-blue-700",
-  Completed: "bg-green-50 text-green-700",
-  Cancelled: "bg-gray-100 text-gray-600",
+  Open: "bg-yellow-100 text-yellow-800",
+  "In Progress": "bg-blue-100 text-blue-800",
+  Completed: "bg-green-100 text-green-800",
+  Cancelled: "bg-gray-100 text-gray-700",
 };
 
 type DateInput = string | Date | null | undefined;
@@ -59,10 +64,8 @@ function formatDate(date: DateInput) {
 }
 
 export default function WorkOrdersPage() {
-  const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
-  const searchParams = useSearchParams();
-  const selectedStoreId = searchParams.get("storeId") || "";
+  const router = useRouter();
 
   // While the session is loading on the client, avoid making assumptions
   // about the user's role. This prevents briefly treating an admin as a
@@ -73,12 +76,23 @@ export default function WorkOrdersPage() {
   const technicianId = !isSessionLoading
     ? (((session?.user as any)?.technicianId ?? null) as string | null)
     : null;
-  const userStoreId = !isSessionLoading
-    ? (((session?.user as any)?.storeId ?? null) as string | null)
-    : null;
-  const isAdmin = isAdminLike(role);
-  const isTechnician = isTechnicianRole(role);
-  const isMaster = role === "MASTER_ADMIN";
+  const isAdmin = role === "ADMIN";
+  const isTechnician = role === "TECHNICIAN";
+  const isUser = role === "USER";
+  const isMasterAdmin = role === "MASTER_ADMIN";
+  const userStoreId = ((session?.user as any)?.storeId ?? null) as string | null;
+
+  // Redirect technicians away from this page
+  useEffect(() => {
+    if (!isSessionLoading && isTechnician) {
+      router.push("/");
+    }
+  }, [isSessionLoading, isTechnician, router]);
+
+  // Show nothing while redirecting technicians
+  if (isTechnician && !isSessionLoading) {
+    return null;
+  }
 
   const [status, setStatus] =
     useState<(typeof statusOptions)[number]>("All");
@@ -92,6 +106,7 @@ export default function WorkOrdersPage() {
   const [tableOrders, setTableOrders] = useState<WorkOrder[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [stores, setStores] = useState<{ id: string; name: string; code?: string | null }[]>([]);
 
   const [filter, setFilter] = useState<
     "all" | "open" | "inProgress" | "completed" | "overdue"
@@ -102,65 +117,74 @@ export default function WorkOrdersPage() {
   // 🔹 "My Tasks" mode (focus on a single technician's active work)
   const [myTasksMode, setMyTasksMode] = useState(false);
   const [myTasksInitialized, setMyTasksInitialized] = useState(false);
-  const [stores, setStores] = useState<
-    { id: string; name: string; code?: string | null }[]
-  >([]);
-  const [isRefreshing, startTransition] = useTransition();
-  const [fromDate, setFromDate] = useState<string>("");
-  const [toDate, setToDate] = useState<string>("");
 
   // --------- Load data ---------
   useEffect(() => {
-    const params = new URLSearchParams();
+    fetch("/api/workorders", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) {
+          console.error("Failed to fetch work orders:", res.status);
+          return { data: [] };
+        }
+        return res.json();
+      })
+      .then((data) => setTableOrders(data.data || data || []))
+      .catch((err) => {
+        console.error("Error fetching work orders:", err);
+        setTableOrders([]);
+      });
 
-    if (isMaster && selectedStoreId) {
-      params.set("storeId", selectedStoreId);
-    }
-
-    if (fromDate) {
-      params.set("from", fromDate);
-    }
-    if (toDate) {
-      params.set("to", toDate);
-    }
-
-    const workOrdersQuery = params.toString();
-    const workOrdersUrl = `/api/workorders${
-      workOrdersQuery ? `?${workOrdersQuery}` : ""
-    }`;
-
-    const storeScopedQuery =
-      isMaster && selectedStoreId
-        ? `?storeId=${encodeURIComponent(selectedStoreId)}`
-        : "";
-
-    fetch(workOrdersUrl, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => setTableOrders(data.data || []));
-
-    fetch(`/api/assets${storeScopedQuery}`, { cache: "no-store" })
-      .then((res) => res.json())
+    fetch("/api/assets", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) {
+          console.error("Failed to fetch assets:", res.status);
+          return [];
+        }
+        return res.json();
+      })
       .then((data) =>
         setAssets(Array.isArray(data) ? data : data.data || [])
-      );
+      )
+      .catch((err) => {
+        console.error("Error fetching assets:", err);
+        setAssets([]);
+      });
 
     fetch("/api/technicians", { cache: "no-store" })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          console.error("Failed to fetch technicians:", res.status);
+          return [];
+        }
+        return res.json();
+      })
       .then((data) =>
         setTechnicians(Array.isArray(data) ? data : data.data || [])
-      );
+      )
+      .catch((err) => {
+        console.error("Error fetching technicians:", err);
+        setTechnicians([]);
+      });
 
-    if (isMaster) {
+    // Fetch stores if master admin
+    if (isMasterAdmin) {
       fetch("/api/stores", { cache: "no-store" })
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            console.error("Failed to fetch stores:", res.status);
+            return [];
+          }
+          return res.json();
+        })
         .then((data) =>
-          setStores(Array.isArray(data?.data) ? data.data : [])
+          setStores(Array.isArray(data) ? data : data.data || [])
         )
-        .catch(() => {
-          // swallow; filter will simply not render
+        .catch((err) => {
+          console.error("Error fetching stores:", err);
+          setStores([]);
         });
     }
-  }, [isMaster, selectedStoreId, fromDate, toDate]);
+  }, [isMasterAdmin]);
 
   // For technicians, default My Tasks to ON (focus on active queue) once the
   // role information is available. Admins keep My Tasks off by default.
@@ -264,223 +288,279 @@ export default function WorkOrdersPage() {
     return bd.getTime() - ad.getTime();
   });
 
+  // --- Header metrics & search items for DashboardHeader ---
+  const email = ((session?.user as any)?.email as string) ?? "";
+
+  const pendingCount = useMemo(
+    () =>
+      tableOrders.filter(
+        (w) => w.status === "Open" || w.status === "In Progress"
+      ).length,
+    [tableOrders]
+  );
+
+  const overdueCount = useMemo(
+    () =>
+      tableOrders.filter((w) => {
+        if (!w.dueDate) return false;
+        const due = new Date(w.dueDate as any);
+        const dueDay = new Date(
+          due.getFullYear(),
+          due.getMonth(),
+          due.getDate()
+        );
+        const isCompleted =
+          w.status === "Completed" || w.status === "Cancelled";
+        return !isCompleted && dueDay < today;
+      }).length,
+    [tableOrders, today]
+  );
+
+  // We don't yet load schedules on this page; show 0 for now.
+  const scheduledMaintenanceCount = 0;
+
+  const searchItems: DashboardSearchItem[] = useMemo(
+    () => [
+      // Work orders
+      ...tableOrders.map((w) => ({
+        id: w.id,
+        type: "workorder" as const,
+        title: w.title,
+        description: `Asset: ${
+          assetMap[w.assetId]?.name || w.assetId
+        } • Status: ${w.status}`,
+        href: `/workorders/${w.id}`,
+      })),
+      // Assets
+      ...assets.map((a) => ({
+        id: a.id,
+        type: "asset" as const,
+        title: a.name,
+        description: a.location,
+        href: `/assets/${a.id}`,
+      })),
+    ],
+    [tableOrders, assets, assetMap]
+  );
+
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
-      {/* Top Bar: Store filter (MASTER_ADMIN) + Button right */}
-      <div className="flex flex-row items-center mb-2 gap-3 justify-between">
-        <div className="flex-1">
-          {isMaster && stores.length > 0 && (
-            <StoreFilter stores={stores} selectedStoreId={selectedStoreId} />
-          )}
-        </div>
-        <AdminOnly>
-          <button
-            className="bg-blue-600 text-white font-semibold px-6 py-2 rounded hover:bg-blue-700"
-            onClick={() => setShowCreate(true)}
-          >
-            New Work Order
-          </button>
-        </AdminOnly>
-      </div>
+      {/* Global-style header: search, notifications, user avatar */}
+      <DashboardHeader
+        email={email}
+        pendingCount={pendingCount}
+        overdueCount={overdueCount}
+        scheduledMaintenanceCount={scheduledMaintenanceCount}
+        searchItems={searchItems}
+      />
 
-      {/* Filters row (Status, Priority, Technician, Search) */}
-      <div className="flex flex-wrap gap-4 items-center text-sm">
-        {/* Due Date Range */}
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-600">Due between:</span>
-          <input
-            type="date"
-            className="border rounded px-2 py-1"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-          />
-          <span className="text-gray-400">–</span>
-          <input
-            type="date"
-            className="border rounded px-2 py-1"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-          />
-          {(fromDate || toDate) && (
+      {/* Page header */}
+      <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Work Orders</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Track, filter, and manage all maintenance tasks.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {isTechnician && (
             <button
               type="button"
-              className="text-xs text-gray-500 underline"
-              onClick={() => {
-                setFromDate("");
-                setToDate("");
-              }}
+              onClick={() => setMyTasksMode((prev) => !prev)}
+              className={`rounded-full px-4 py-2 text-xs font-medium transition ${
+                myTasksMode
+                  ? "bg-blue-50 text-blue-700 border border-blue-600"
+                  : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-50"
+              }`}
             >
-              Clear
+              My Tasks
+            </button>
+          )}
+          {(isAdmin || isUser) && (
+            <button
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={() => setShowCreate(true)}
+            >
+              <span className="text-base leading-none">+</span>
+              <span>New Work Order</span>
             </button>
           )}
         </div>
+      </div>
 
-        {/* Status */}
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-600">Status:</span>
-          <select
-            className="border rounded px-2 py-1"
-            value={status}
-            onChange={(e) =>
-              setStatus(e.target.value as (typeof statusOptions)[number])
-            }
-          >
-            {statusOptions.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Priority */}
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-600">Priority:</span>
-          <select
-            className="border rounded px-2 py-1"
-            value={priority}
-            onChange={(e) =>
-              setPriority(
-                e.target.value as (typeof priorityOptions)[number]
-              )
-            }
-          >
-            {priorityOptions.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* 🔹 Technician filter */}
-        {isAdmin && (
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-600">Technician:</span>
-            <select
-              className="border rounded px-2 py-1"
-              value={techFilter}
-              onChange={(e) => setTechFilter(e.target.value)}
-            >
-              <option value="all">All</option>
-              {technicians.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* 🔹 My Tasks toggle (TECHNICIAN only) */}
-        {isTechnician && (
-          <button
-            type="button"
-            onClick={() => setMyTasksMode((prev) => !prev)}
-            className={`border rounded-full px-3 py-1 text-xs sm:text-sm transition ${
-              myTasksMode
-                ? "bg-blue-50 text-blue-700 border-blue-600"
-                : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
-            }`}
-          >
-            My Tasks
-          </button>
-        )}
-
+      {/* Search + filters */}
+      <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
         {/* Search */}
-        <div className="flex-1 min-w-[200px] flex justify-end">
+        <div className="relative w-full md:w-1/3">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <Search className="h-4 w-4" />
+          </span>
           <input
             type="text"
-            placeholder="Search title or asset..."
-            className="w-full max-w-xs border rounded px-3 py-1"
+            placeholder="Search work orders..."
+            className="w-full rounded-lg border border-slate-200 bg-white pl-10 pr-4 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-      </div>
-      {/* Table */}
-      <Table
-        headers={[
-          "ID",
-          "Title",
-          "Asset",
-          "Priority",
-          "Status",
-          "Assigned To",
-          "Due Date",
-          "Actions",
-        ]}
-      >
-        {visibleRows.length === 0 ? (
-          <tr>
-            <td
-              colSpan={8}
-              className="py-6 text-center text-gray-400"
+
+        {/* Filter buttons */}
+        <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+          {/* Status filter */}
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 hover:bg-slate-50"
+          >
+            <Filter className="h-4 w-4" />
+            <span>Status</span>
+            <ChevronDown className="h-3 w-3" />
+          </button>
+
+          {/* Priority filter */}
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 hover:bg-slate-50"
+          >
+            <span>Priority</span>
+            <ChevronDown className="h-3 w-3" />
+          </button>
+
+          {/* Technician filter (admin only) */}
+          {isAdmin && (
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 hover:bg-slate-50"
             >
-              No work orders found.
-            </td>
-          </tr>
-        ) : (
-          visibleRows.map((w) => {
-            const isPm = w.title?.startsWith("PM:");
-            const isRequest = w.title?.startsWith("Request:");
-            return (
-              <tr
-                key={w.id}
-                className="hover:bg-gray-50 cursor-pointer transition"
-                onClick={() => setSelected(w)}
-              >
-                <td className="px-4 py-2 font-mono">{w.id}</td>
-                <td className="px-4 py-2 whitespace-nowrap">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900">
-                      {w.title}
-                    </span>
-                    {isPm && (
-                      <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
-                        PM
-                      </span>
-                    )}
-                    {isRequest && (
-                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                        Request
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2">
-                  {assetMap[w.assetId]?.name || w.assetId}
-                </td>
-                <td className="px-4 py-2">
-                  <Badge colorClass={priorityColors[w.priority]}>
-                    {w.priority}
-                  </Badge>
-                </td>
-                <td className="px-4 py-2">
-                  <Badge colorClass={statusColors[w.status]}>
-                    {w.status}
-                  </Badge>
-                </td>
-                <td className="px-4 py-2">
-                  {w.assignedToId
-                    ? techMap[w.assignedToId] || w.assignedToId
-                    : "—"}
-                </td>
-                <td className="px-4 py-2 whitespace-nowrap">
-                  {formatDate(w.dueDate)}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <ViewWorkOrderButton id={w.id} />
-                    {isAdmin && <EditWorkOrderButton id={w.id} />}
-                    {isAdmin && <DeleteWorkOrderButton id={w.id} />}
-                  </div>
-                </td>
+              <span>Technician</span>
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          )}
+
+          {/* Date range placeholder */}
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 hover:bg-slate-50"
+          >
+            <CalendarRange className="h-4 w-4" />
+            <span>Date Range</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main table card */}
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs font-medium uppercase text-slate-500">
+              <tr>
+                <th className="p-4">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                </th>
+                <th className="p-4 font-medium">Work Order</th>
+                <th className="p-4 font-medium">Status</th>
+                <th className="p-4 font-medium">Priority</th>
+                <th className="p-4 font-medium">Assigned To</th>
+                <th className="p-4 font-medium">Asset</th>
+                <th className="p-4 font-medium">Due Date</th>
+                <th className="p-4" />
               </tr>
-            );
-          })
-        )}
-      </Table>
+            </thead>
+            <tbody>
+              {visibleRows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="px-4 py-8 text-center text-slate-400"
+                  >
+                    No work orders found.
+                  </td>
+                </tr>
+              ) : (
+                visibleRows.map((w) => (
+                  <tr
+                    key={w.id}
+                    className="border-t border-slate-100 hover:bg-slate-50"
+                  >
+                    <td className="p-4 align-top">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="p-4 align-top">
+                      <div className="font-medium text-slate-900">
+                        {w.title}
+                      </div>
+                      <div className="text-xs text-slate-500">{w.id}</div>
+                    </td>
+                    <td className="p-4 align-top">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusColors[w.status]}`}
+                      >
+                        {w.status}
+                      </span>
+                    </td>
+                    <td className="p-4 align-top">
+                      <span
+                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                          priorityColors[w.priority]
+                        }`}
+                      >
+                        {w.priority}
+                      </span>
+                    </td>
+                    <td className="p-4 align-top">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">
+                          {(techMap[w.assignedToId || ""] || "U")
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
+                        <span className="text-sm text-slate-800">
+                          {w.assignedToId
+                            ? techMap[w.assignedToId] || w.assignedToId
+                            : "Unassigned"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-4 align-top text-slate-600">
+                      {assetMap[w.assetId]?.name || w.assetId}
+                    </td>
+                    <td className="p-4 align-top text-slate-600">
+                      {formatDate(w.dueDate)}
+                    </td>
+                    <td className="p-4 align-top">
+                      <div className="flex items-center justify-end gap-2">
+                        <ViewWorkOrderButton id={w.id} />
+                        <EditWorkOrderButton id={w.id} />
+                        {isAdmin && <DeleteWorkOrderButton id={w.id} />}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Simple footer summary */}
+        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs text-slate-500">
+          <span>
+            Showing{" "}
+            <span className="font-medium">
+              {visibleRows.length || 0}
+            </span>{" "}
+            of{" "}
+            <span className="font-medium">
+              {visibleWorkOrders.length || 0}
+            </span>{" "}
+            work orders
+          </span>
+        </div>
+      </div>
 
       {/* Drawer for row details */}
       <Drawer open={!!selected} onClose={() => setSelected(null)}>
@@ -489,9 +569,6 @@ export default function WorkOrdersPage() {
             workOrder={selected}
             asset={assetMap[selected.assetId]}
             technicianMap={techMap}
-            isAdmin={isAdmin}
-            isTechnician={isTechnician}
-            currentTechnicianId={technicianId}
           />
         )}
       </Drawer>
@@ -499,16 +576,27 @@ export default function WorkOrdersPage() {
       {/* Drawer for create form */}
       <Drawer open={showCreate} onClose={() => setShowCreate(false)}>
         <CreateWorkOrderForm
-          isMasterAdmin={isMaster}
-          stores={stores}
-          currentStoreId={isMaster ? selectedStoreId || null : userStoreId}
           onSuccess={(newWorkOrder) => {
             // Close the drawer
             setShowCreate(false);
-            // Optimistically add the new work order to the current table rows
-            setTableOrders((prev) => [newWorkOrder, ...prev]);
+            // Refresh table data after successful creation
+            fetch("/api/workorders", { cache: "no-store" })
+              .then((res) => {
+                if (!res.ok) {
+                  console.error("Failed to refresh work orders:", res.status);
+                  return { data: [] };
+                }
+                return res.json();
+              })
+              .then((data) => setTableOrders(data.data || data || []))
+              .catch((err) => {
+                console.error("Error refreshing work orders:", err);
+              });
           }}
           onCancel={() => setShowCreate(false)}
+          isMasterAdmin={isMasterAdmin}
+          stores={stores}
+          currentStoreId={userStoreId}
         />
       </Drawer>
     </div>

@@ -6,13 +6,13 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike } from "@/lib/roles";
 
-// Allow both new and legacy roles at the API layer; the UI only offers
-// MASTER_ADMIN, STORE_ADMIN, and TECHNICIAN.
+// Allow both new and legacy roles at the API layer
 const ALLOWED_ROLES = [
   "MASTER_ADMIN",
   "STORE_ADMIN",
   "ADMIN",
   "TECHNICIAN",
+  "USER",
 ] as const;
 
 export async function POST(req: NextRequest) {
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
 
     if (finalRole === "MASTER_ADMIN") {
       storeId = null;
-    } else if (finalRole === "STORE_ADMIN" || finalRole === "TECHNICIAN") {
+    } else if (finalRole === "STORE_ADMIN" || finalRole === "TECHNICIAN" || finalRole === "USER") {
       const storeIdValue =
         typeof rawStoreId === "string" && rawStoreId.trim().length > 0
           ? rawStoreId.trim()
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: "Store is required for store admins and technicians.",
+            error: "Store is required for store admins, technicians, and users.",
           },
           { status: 400 }
         );

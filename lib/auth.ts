@@ -43,7 +43,7 @@ export const authOptions: NextAuthOptions = {
         if (!isValid) return null;
 
         // Only allow known, supported roles to sign in.
-        const allowedRoles = ["MASTER_ADMIN", "STORE_ADMIN", "TECHNICIAN", "ADMIN"];
+        const allowedRoles = ["MASTER_ADMIN", "STORE_ADMIN", "TECHNICIAN", "ADMIN", "USER"];
         if (!allowedRoles.includes(user.role)) {
           return null;
         }

@@ -4,7 +4,15 @@ import { AppShell } from "../components/layout/AppShell";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import AppSessionProvider from "@/components/SessionProvider";
-import AppThemeProvider from "@/components/ThemeProvider";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Lamafix - CMMS Dashboard",
+  description: "Computerized Maintenance Management System",
+  icons: {
+    icon: "/favicon.ico",
+  },
+};
 
 export default async function RootLayout({
   children,
@@ -17,15 +25,17 @@ export default async function RootLayout({
     | undefined;
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="bg-gray-100 dark:bg-slate-900">
+    <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" />
+      </head>
+      <body className="bg-gray-100">
         <AppSessionProvider session={session}>
-          <AppThemeProvider>
-            {/* Pass minimal user info into the shell so it can show role/email and logout */}
-            <AppShell user={user}>{children}</AppShell>
-          </AppThemeProvider>
+          {/* Pass minimal user info into the shell so it can show role/email and logout */}
+          <AppShell user={user}>{children}</AppShell>
         </AppSessionProvider>
       </body>
     </html>
   );
 }
+

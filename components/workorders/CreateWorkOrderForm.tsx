@@ -1,5 +1,6 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 interface StoreOption {
   id: string;
@@ -25,12 +26,21 @@ export default function CreateWorkOrderForm({
   currentStoreId,
 }: Props) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role as string | undefined;
+  const isUser = role === "USER";
+
   const [title, setTitle] = useState("");
+  const [location, setLocation] = useState("");
   const [assetId, setAssetId] = useState("");
+  const [partsRequired, setPartsRequired] = useState(false);
+  const [problemDescription, setProblemDescription] = useState("");
+  const [helpDescription, setHelpDescription] = useState("");
   const [priority, setPriority] = useState("Medium");
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const [assignedTo, setAssignedTo] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [assets, setAssets] = useState<any[]>([]);
@@ -47,23 +57,102 @@ export default function CreateWorkOrderForm({
 
   useEffect(() => {
     fetch("/api/assets", { cache: "no-store" })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          console.error("Failed to fetch assets:", res.status);
+          return [];
+        }
+        return res.json();
+      })
       .then((data) =>
         setAssets(Array.isArray(data) ? data : data.data || [])
-      );
+      )
+      .catch((err) => {
+        console.error("Error fetching assets:", err);
+        setAssets([]);
+      });
+
+    // Only fetch technicians if not USER role (USER can't assign)
+    if (!isUser) {
     fetch("/api/technicians", { cache: "no-store" })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          console.error("Failed to fetch technicians:", res.status);
+          return [];
+        }
+        return res.json();
+      })
       .then((data) =>
         setTechnicians(Array.isArray(data) ? data : data.data || [])
+      )
+      .catch((err) => {
+        console.error("Error fetching technicians:", err);
+        setTechnicians([]);
+      });
+    }
+  }, [isUser]);
+
+  async function handleFileUpload(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("fileType", "workorder");
+    
+    // Get storeId - use the selected store for master admin, or user's store
+    const uploadStoreId = isMasterAdmin ? storeId : currentStoreId;
+    if (uploadStoreId) {
+      formData.append("storeId", uploadStoreId);
+    }
+
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!data.success) {
+      throw new Error(data.error || "Failed to upload file");
+    }
+
+    return data.data.url;
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingFiles(true);
+    setError(null);
+
+    try {
+      const uploadPromises = Array.from(files).map((file) =>
+        handleFileUpload(file)
       );
-  }, []);
+      const urls = await Promise.all(uploadPromises);
+      setAttachments((prev) => [...prev, ...urls]);
+    } catch (err: any) {
+      setError(err.message || "Failed to upload files");
+    } finally {
+      setUploadingFiles(false);
+      // Reset input
+      e.target.value = "";
+    }
+  }
+
+  function removeAttachment(index: number) {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function validate() {
     if (!title.trim()) return "Title is required.";
+    if (!location.trim()) return "Location is required.";
     if (!assetId) return "Asset is required.";
+    if (!problemDescription.trim())
+      return "Where or What is the problem? is required.";
+    if (!helpDescription.trim()) return "How can we help? is required.";
     if (!priority) return "Priority is required.";
     // MASTER_ADMIN must explicitly choose a store
-    if (isMasterAdmin && !storeId) return "Store is required for work orders.";
+    if (isMasterAdmin && !storeId)
+      return "Store is required for work orders.";
     return null;
   }
 
@@ -77,24 +166,38 @@ export default function CreateWorkOrderForm({
     setLoading(true);
     setError(null);
     try {
+      const requestBody = {
+        title,
+        location,
+        assetId,
+        partsRequired,
+        problemDescription,
+        helpDescription,
+        attachments,
+        priority,
+        assignedTo: isUser ? undefined : assignedTo || undefined,
+        dueDate: dueDate || undefined,
+        // Only MASTER_ADMIN can pick a store explicitly; STORE_ADMIN and USER are scoped
+        // to their own store on the backend.
+        storeId: isMasterAdmin ? storeId || null : undefined,
+      };
+      
+      console.log("Submitting work order:", requestBody);
+      
       const res = await fetch("/api/workorders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          assetId,
-          priority,
-          assignedTo: assignedTo || undefined,
-          dueDate: dueDate || undefined,
-          description: description || undefined,
-          // Only MASTER_ADMIN can pick a store explicitly; STORE_ADMIN is scoped
-          // to their own store on the backend.
-          storeId: isMasterAdmin ? storeId || null : undefined,
-        }),
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
-      if (!data.success) {
-        setError(data.error || "Failed to create work order.");
+      if (!res.ok || !data.success) {
+        const errorMessage = data.error || `Failed to create work order (${res.status}).`;
+        console.error("Work order creation error:", {
+          status: res.status,
+          error: data.error,
+          data: data,
+        });
+        setError(errorMessage);
         setLoading(false);
         return;
       }
@@ -149,6 +252,20 @@ export default function CreateWorkOrderForm({
           required
         />
       </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Location <span className="text-red-500">*</span>
+        </label>
+        <input
+          className="w-full border rounded px-3 py-1"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="Enter the location of the issue"
+          required
+        />
+      </div>
+
       <div>
         <label className="block text-sm font-medium mb-1">
           Asset <span className="text-red-500">*</span>
@@ -167,6 +284,101 @@ export default function CreateWorkOrderForm({
           ))}
         </select>
       </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Parts Required <span className="text-red-500">*</span>
+        </label>
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="partsRequired"
+              checked={partsRequired === true}
+              onChange={() => setPartsRequired(true)}
+              required
+            />
+            <span>Yes</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="partsRequired"
+              checked={partsRequired === false}
+              onChange={() => setPartsRequired(false)}
+              required
+            />
+            <span>No</span>
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Where or What is the problem? <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          className="w-full border rounded px-3 py-1"
+          rows={4}
+          value={problemDescription}
+          onChange={(e) => setProblemDescription(e.target.value)}
+          placeholder="Describe the problem in detail"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          How can we help? <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          className="w-full border rounded px-3 py-1"
+          rows={4}
+          value={helpDescription}
+          onChange={(e) => setHelpDescription(e.target.value)}
+          placeholder="Describe how you would like us to help"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">
+          Upload Image / Video
+        </label>
+        <input
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          onChange={handleFileChange}
+          disabled={uploadingFiles}
+          className="w-full border rounded px-3 py-1"
+        />
+        {uploadingFiles && (
+          <p className="text-sm text-gray-500 mt-1">Uploading files...</p>
+        )}
+        {attachments.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {attachments.map((url, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between bg-gray-50 p-2 rounded"
+              >
+                <span className="text-sm text-gray-700 truncate flex-1">
+                  {url.split("/").pop()}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(index)}
+                  className="text-red-500 hover:text-red-700 text-sm ml-2"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       <div>
         <label className="block text-sm font-medium mb-1">
           Priority <span className="text-red-500">*</span>
@@ -181,6 +393,9 @@ export default function CreateWorkOrderForm({
           ))}
         </select>
       </div>
+
+      {/* Assigned To (only for admins, not USER) */}
+      {!isUser && (
       <div>
         <label className="block text-sm font-medium mb-1">Assigned To</label>
         <select
@@ -198,6 +413,8 @@ export default function CreateWorkOrderForm({
             ))}
         </select>
       </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium mb-1">Due Date</label>
         <input
@@ -207,20 +424,12 @@ export default function CreateWorkOrderForm({
           onChange={(e) => setDueDate(e.target.value)}
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium mb-1">Description</label>
-        <textarea
-          className="w-full border rounded px-3 py-1"
-          rows={3}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-      </div>
+
       <div className="flex gap-3 mt-4">
         <button
           type="submit"
           className="bg-blue-600 text-white font-semibold px-5 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
-          disabled={loading || isPending}
+          disabled={loading || isPending || uploadingFiles}
         >
           {loading ? "Creating…" : "Create Work Order"}
         </button>
@@ -228,7 +437,7 @@ export default function CreateWorkOrderForm({
           type="button"
           className="px-5 py-2 rounded border ml-2"
           onClick={onCancel}
-          disabled={loading}
+          disabled={loading || uploadingFiles}
         >
           Cancel
         </button>

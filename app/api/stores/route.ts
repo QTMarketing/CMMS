@@ -3,23 +3,42 @@ import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { isMasterAdmin } from "@/lib/roles";
+import { isMasterAdmin, isAdminLike } from "@/lib/roles";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
 
-  if (!session || !isMasterAdmin((session.user as any)?.role)) {
+  if (!session || !isAdminLike((session.user as any)?.role)) {
     return NextResponse.json(
       { success: false, error: "Forbidden" },
       { status: 403 }
     );
   }
 
-  const stores = await prisma.store.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+  const role = (session.user as any)?.role as string | undefined;
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
 
-  return NextResponse.json({ success: true, data: stores });
+  // MASTER_ADMIN sees all stores, STORE_ADMIN sees only their store
+  if (isMasterAdmin(role)) {
+    const stores = await prisma.store.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json({ success: true, data: stores });
+  } else {
+    // STORE_ADMIN: return only their store
+    if (!userStoreId) {
+      return NextResponse.json({ success: true, data: [] });
+    }
+    const store = await prisma.store.findUnique({
+      where: { id: userStoreId },
+    });
+    return NextResponse.json({
+      success: true,
+      data: store ? [store] : [],
+    });
+  }
 }
 
 export async function POST(req: NextRequest) {

@@ -12,7 +12,7 @@ export function getScopedStoreId(
   // MASTER_ADMIN: no store restriction
   if (role === "MASTER_ADMIN") return null;
 
-  // STORE_ADMIN / TECHNICIAN (and any future store-scoped roles)
+  // STORE_ADMIN / TECHNICIAN / USER (and any future store-scoped roles)
   return userStoreId ?? null;
 }
 

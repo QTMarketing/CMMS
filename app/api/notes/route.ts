@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 
 // GET /api/notes?workOrderId=...
 // (optional helper if you ever want to fetch notes from the API)
@@ -26,6 +28,15 @@ export async function GET(req: NextRequest) {
 // Body: { workOrderId: string; text: string; author?: string }
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
     const { workOrderId, text, author } = body || {};
 
@@ -43,10 +54,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Ensure the work order exists
+    // Ensure the work order exists and user has access to it
     const workOrder = await prisma.workOrder.findUnique({
       where: { id: workOrderId },
-      select: { id: true },
+      select: { id: true, storeId: true, assignedToId: true },
     });
 
     if (!workOrder) {
@@ -54,6 +65,28 @@ export async function POST(req: NextRequest) {
         { success: false, error: "Work order not found." },
         { status: 404 }
       );
+    }
+
+    // Check access: USER and TECHNICIAN can only comment on work orders they have access to
+    const role = (session.user as any)?.role as string | undefined;
+    const userStoreId = ((session.user as any)?.storeId ?? null) as string | null;
+    const technicianId = ((session.user as any)?.technicianId ?? null) as string | null;
+
+    if (role === "USER" || role === "TECHNICIAN") {
+      // USER: can only comment on work orders from their store
+      if (role === "USER" && workOrder.storeId !== userStoreId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden" },
+          { status: 403 }
+        );
+      }
+      // TECHNICIAN: can only comment on work orders assigned to them
+      if (role === "TECHNICIAN" && workOrder.assignedToId !== technicianId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden" },
+          { status: 403 }
+        );
+      }
     }
 
     // Create the note

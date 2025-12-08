@@ -13,92 +13,115 @@ import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 import { sendWorkOrderAssignedEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!session) {
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const role = (session.user as any)?.role as string | undefined;
+    const technicianId = ((session.user as any)?.technicianId ?? null) as
+      | string
+      | null;
+    const userStoreId = ((session.user as any)?.storeId ?? null) as
+      | string
+      | null;
+
+    const searchParams = req.nextUrl.searchParams;
+    const urlStoreId = searchParams.get("storeId") || null;
+    const rawFrom = searchParams.get("from");
+    const rawTo = searchParams.get("to");
+
+    const where: any = {};
+
+    if (canSeeAllStores(role)) {
+      if (urlStoreId) {
+        where.storeId = urlStoreId;
+      }
+    } else {
+      const scopedStoreId = getScopedStoreId(role, userStoreId);
+      if (scopedStoreId) {
+        where.storeId = scopedStoreId;
+      } else {
+        where.storeId = "__never_match__";
+      }
+    }
+
+    if (isTechnicianRole(role)) {
+      // Technicians must only ever see their own assigned work orders.
+      // If, for some reason, their user account is not linked to a technician
+      // record, they should see nothing rather than all store work orders.
+      if (!technicianId) {
+        where.assignedToId = "__never_match__";
+      } else {
+        where.assignedToId = technicianId;
+      }
+    }
+
+    // Optional dueDate range filter (from/to). We treat incoming values as
+    // date-only when possible (YYYY-MM-DD) and normalize them to a UTC
+    // start-of-day / end-of-day range so they line up with how due dates are stored.
+    const parseBoundary = (value: string | null, type: "start" | "end") => {
+      if (!value) return undefined;
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+
+      // If the client sent a full ISO string, use it as-is.
+      if (trimmed.includes("T")) {
+        const d = new Date(trimmed);
+        return Number.isNaN(d.getTime()) ? undefined : d;
+      }
+
+      const suffix =
+        type === "start" ? "T00:00:00.000Z" : "T23:59:59.999Z";
+      const d = new Date(`${trimmed}${suffix}`);
+      return Number.isNaN(d.getTime()) ? undefined : d;
+    };
+
+    const fromDate = parseBoundary(rawFrom, "start");
+    const toDate = parseBoundary(rawTo, "end");
+
+    if (fromDate || toDate) {
+      where.dueDate = {
+        ...(fromDate ? { gte: fromDate } : {}),
+        ...(toDate ? { lte: toDate } : {}),
+      };
+    }
+
+    const result = await prisma.workOrder.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        notes: true,
+        createdBy: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+    return NextResponse.json({ success: true, data: result });
+  } catch (err) {
+    console.error("Error fetching work orders:", err);
+    // Fail soft with empty list so UI can still render
     return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
+      { success: true, data: [] },
+      { status: 200 }
     );
   }
-
-  const role = (session.user as any)?.role as string | undefined;
-  const technicianId = ((session.user as any)?.technicianId ?? null) as
-    | string
-    | null;
-  const userStoreId = ((session.user as any)?.storeId ?? null) as
-    | string
-    | null;
-
-  const searchParams = req.nextUrl.searchParams;
-  const urlStoreId = searchParams.get("storeId") || null;
-  const rawFrom = searchParams.get("from");
-  const rawTo = searchParams.get("to");
-
-  const where: any = {};
-
-  if (canSeeAllStores(role)) {
-    if (urlStoreId) {
-      where.storeId = urlStoreId;
-    }
-  } else {
-    const scopedStoreId = getScopedStoreId(role, userStoreId);
-    if (scopedStoreId) {
-      where.storeId = scopedStoreId;
-    } else {
-      where.storeId = "__never_match__";
-    }
-  }
-
-  if (isTechnicianRole(role)) {
-    // Technicians must only ever see their own assigned work orders.
-    // If, for some reason, their user account is not linked to a technician
-    // record, they should see nothing rather than all store work orders.
-    if (!technicianId) {
-      where.assignedToId = "__never_match__";
-    } else {
-      where.assignedToId = technicianId;
-    }
-  }
-
-  // Optional dueDate range filter (from/to). We treat incoming values as
-  // date-only when possible (YYYY-MM-DD) and normalize them to a UTC
-  // start-of-day / end-of-day range so they line up with how due dates are stored.
-  const parseBoundary = (value: string | null, type: "start" | "end") => {
-    if (!value) return undefined;
-    const trimmed = value.trim();
-    if (!trimmed) return undefined;
-
-    // If the client sent a full ISO string, use it as-is.
-    if (trimmed.includes("T")) {
-      const d = new Date(trimmed);
-      return Number.isNaN(d.getTime()) ? undefined : d;
-    }
-
-    const suffix =
-      type === "start" ? "T00:00:00.000Z" : "T23:59:59.999Z";
-    const d = new Date(`${trimmed}${suffix}`);
-    return Number.isNaN(d.getTime()) ? undefined : d;
-  };
-
-  const fromDate = parseBoundary(rawFrom, "start");
-  const toDate = parseBoundary(rawTo, "end");
-
-  if (fromDate || toDate) {
-    where.dueDate = {
-      ...(fromDate ? { gte: fromDate } : {}),
-      ...(toDate ? { lte: toDate } : {}),
-    };
-  }
-
-  const result = await prisma.workOrder.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    include: {
-      notes: true,
-    },
-  });
-  return NextResponse.json({ success: true, data: result });
 }
 
 export async function POST(request: Request) {
@@ -117,8 +140,9 @@ export async function POST(request: Request) {
       | string
       | null;
 
-    // Only admin-like roles may create work orders; TECHNICIAN explicitly forbidden.
-    if (!isAdminLike(role) || isTechnicianRole(role)) {
+    // Only admin-like roles and USER may create work orders; TECHNICIAN explicitly forbidden.
+    const canCreate = isAdminLike(role) || role === "USER";
+    if (!canCreate || isTechnicianRole(role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -126,9 +150,15 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    console.log("[workorders POST] Received request body:", JSON.stringify(body, null, 2));
     const {
       title,
+      location,
       assetId,
+      partsRequired,
+      problemDescription,
+      helpDescription,
+      attachments,
       priority,
       assignedTo,
       dueDate,
@@ -136,9 +166,40 @@ export async function POST(request: Request) {
       storeId: rawStoreId,
     } = body ?? {};
 
-    if (!title || !assetId || !priority) {
+    // Validate required fields
+    if (!title || typeof title !== "string" || !title.trim()) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields." },
+        { success: false, error: "Title is required." },
+        { status: 400 }
+      );
+    }
+    if (!location || typeof location !== "string" || !location.trim()) {
+      return NextResponse.json(
+        { success: false, error: "Location is required." },
+        { status: 400 }
+      );
+    }
+    if (!assetId || typeof assetId !== "string") {
+      return NextResponse.json(
+        { success: false, error: "Asset is required." },
+        { status: 400 }
+      );
+    }
+    if (!priority || typeof priority !== "string") {
+      return NextResponse.json(
+        { success: false, error: "Priority is required." },
+        { status: 400 }
+      );
+    }
+    if (!problemDescription || typeof problemDescription !== "string" || !problemDescription.trim()) {
+      return NextResponse.json(
+        { success: false, error: "Where or What is the problem? is required." },
+        { status: 400 }
+      );
+    }
+    if (!helpDescription || typeof helpDescription !== "string" || !helpDescription.trim()) {
+      return NextResponse.json(
+        { success: false, error: "How can we help? is required." },
         { status: 400 }
       );
     }
@@ -184,6 +245,18 @@ export async function POST(request: Request) {
         );
       }
       finalStoreId = bodyStoreId;
+    } else if (role === "USER") {
+      // USER: always use their own storeId, ignoring any body storeId.
+      finalStoreId = userStoreId;
+      if (!finalStoreId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Your user account is not associated with a store.",
+          },
+          { status: 400 }
+        );
+      }
     } else {
       // STORE_ADMIN: always use their own storeId, ignoring any body storeId.
       finalStoreId = userStoreId;
@@ -225,11 +298,19 @@ export async function POST(request: Request) {
       normalizedDueDate = new Date(ms);
     }
 
+    // Get the current user ID for createdById
+    const userId = (session.user as any)?.id as string | undefined;
+
     const newWorkOrder = await prisma.workOrder.create({
       data: {
         id: nanoid(),
         title,
+        location: location || undefined,
         assetId,
+        partsRequired: partsRequired === true,
+        problemDescription: problemDescription || undefined,
+        helpDescription: helpDescription || undefined,
+        attachments: Array.isArray(attachments) ? attachments : [],
         priority,
         status: "Open",
         assignedToId: assignedTo || undefined,
@@ -237,6 +318,7 @@ export async function POST(request: Request) {
         dueDate: normalizedDueDate,
         description: description || undefined,
         storeId: finalStoreId,
+        createdById: userId || undefined,
       },
     });
 
@@ -291,9 +373,17 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (e) {
+    console.error("[workorders POST] Error creating work order:", e);
+    const errorMessage = e instanceof Error ? e.message : "Unknown error";
+    const errorDetails = e instanceof Error ? e.stack : String(e);
+    console.error("[workorders POST] Error details:", errorDetails);
     return NextResponse.json(
-      { success: false, error: "Invalid request" },
-      { status: 400 }
+      { 
+        success: false, 
+        error: `Failed to create work order: ${errorMessage}`,
+        details: process.env.NODE_ENV === "development" ? errorDetails : undefined
+      },
+      { status: 500 }
     );
   }
 }

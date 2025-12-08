@@ -11,7 +11,7 @@ import { isAdminLike } from "@/lib/roles";
 
 export default function InventoryPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
   const [inventory, setInventory] = useState([]);
   const [stores, setStores] = useState<any[]>([]);
@@ -19,6 +19,20 @@ export default function InventoryPage() {
   const selectedStoreId = searchParams.get("storeId") || "";
   const role = (session?.user as any)?.role as string | undefined;
   const isAdmin = isAdminLike(role);
+  const isTechnician = role === "TECHNICIAN";
+  const isSessionLoading = sessionStatus === "loading";
+
+  // Redirect technicians away from this page
+  useEffect(() => {
+    if (!isSessionLoading && isTechnician) {
+      router.push("/");
+    }
+  }, [isSessionLoading, isTechnician, router]);
+
+  // Show nothing while redirecting technicians
+  if (isTechnician && !isSessionLoading) {
+    return null;
+  }
 
   useEffect(() => {
     const qs = selectedStoreId

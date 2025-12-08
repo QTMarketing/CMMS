@@ -1,4 +1,4 @@
-export type AppRole = "MASTER_ADMIN" | "STORE_ADMIN" | "ADMIN" | "TECHNICIAN";
+export type AppRole = "MASTER_ADMIN" | "STORE_ADMIN" | "ADMIN" | "TECHNICIAN" | "USER";
 
 export function isMasterAdmin(role?: string | null): boolean {
   return role === "MASTER_ADMIN";
@@ -21,6 +21,19 @@ export function isAdminLike(role?: string | null): boolean {
 
 export function isTechnician(role?: string | null): boolean {
   return role === "TECHNICIAN";
+}
+
+export function isUser(role?: string | null): boolean {
+  return role === "USER";
+}
+
+// Check if role can create work orders and requests
+export function canCreateWorkOrders(role?: string | null): boolean {
+  return isAdminLike(role) || isUser(role);
+}
+
+export function canCreateRequests(role?: string | null): boolean {
+  return isAdminLike(role) || isUser(role) || isTechnician(role);
 }
 
 

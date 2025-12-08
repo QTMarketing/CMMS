@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike } from "@/lib/roles";
@@ -61,8 +61,18 @@ export default async function AssetHistoryPage({ params }: PageProps) {
 
   // Derive role so we can conditionally show PM schedule data only to admins.
   const session = await getServerSession(authOptions);
+  if (!session) {
+    redirect("/login");
+  }
+
   const role = (session?.user as any)?.role;
   const isAdmin = isAdminLike(role);
+  const isTechnician = role === "TECHNICIAN";
+
+  // Redirect technicians away from asset detail pages
+  if (isTechnician) {
+    redirect("/");
+  }
 
   const asset = await prisma.asset.findUnique({
     where: { id },

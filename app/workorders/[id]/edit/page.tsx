@@ -59,9 +59,7 @@ export default async function EditWorkOrderPage({ params }: RouteContext) {
     status: workOrder.status as WorkOrderStatus,
     priority: workOrder.priority as WorkOrderPriority,
     description: workOrder.description ?? "",
-    dueDate: workOrder.dueDate
-      ? workOrder.dueDate.toISOString()
-      : null,
+    dueDate: workOrder.dueDate ? workOrder.dueDate.toISOString() : null,
     createdAt: workOrder.createdAt
       ? workOrder.createdAt.toISOString()
       : "",
@@ -84,21 +82,31 @@ export default async function EditWorkOrderPage({ params }: RouteContext) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white shadow rounded-lg p-8 mt-8 space-y-4">
-      <div className="flex justify-between items-start">
-        <h1 className="text-2xl font-semibold">
-          Edit: {workOrder.title}
-        </h1>
-        <Link
-          href="/workorders"
-          className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-          aria-label="Close"
-        >
-          ×
-        </Link>
+    <div className="space-y-4 px-4 py-4 md:px-6 md:py-6">
+      {/* Page-level header with back link */}
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/workorders/${workOrder.id}`}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
+          >
+            <span className="text-sm">&#8592;</span>
+          </Link>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900">
+              Edit Work Order
+            </h1>
+            <p className="mt-0.5 text-xs text-slate-500">
+              {workOrder.title} · #{workOrder.id}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <EditWorkOrderForm workOrder={formWorkOrder} />
+      {/* Main edit form in a card to match detail layout */}
+      <div className="rounded-lg bg-white p-4 shadow-sm md:p-6">
+        <EditWorkOrderForm workOrder={formWorkOrder} />
+      </div>
     </div>
   );
 }

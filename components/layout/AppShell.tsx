@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { usePathname } from "next/navigation";
 import Sidebar from "./Sidebar";
 import TopNavbar from "./TopNavbar";
 
@@ -18,15 +19,18 @@ export function AppShell({
   user?: AppShellUser;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pathname = usePathname();
+  const isLoginPage = pathname === "/login";
+
+  // On login page, render children without sidebar/navbar
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
-      <Sidebar
-        open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        user={user}
-      />
-      <div className="flex-1 flex flex-col">
+    <div className="min-h-screen bg-slate-50">
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="flex-1 flex flex-col md:ml-64">
         <TopNavbar
           openSidebar={() => setSidebarOpen(true)}
           user={user}

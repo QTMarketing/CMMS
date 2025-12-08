@@ -65,7 +65,13 @@ export default function EditWorkOrderForm({ workOrder }: Props) {
   // ------- Load technicians for dropdown -------
   useEffect(() => {
     fetch("/api/technicians")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          console.error("Failed to fetch technicians:", res.status);
+          return [];
+        }
+        return res.json();
+      })
       .then((data: Technician[]) =>
         // Exclude inactive technicians from assignment dropdowns
         setTechnicians(
@@ -76,6 +82,7 @@ export default function EditWorkOrderForm({ workOrder }: Props) {
       )
       .catch((err) => {
         console.error("Failed to load technicians:", err);
+        setTechnicians([]);
       });
   }, []);
 

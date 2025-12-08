@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 
+import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -11,8 +12,6 @@ import {
 } from "@/lib/roles";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 import StoreFilter from "@/components/StoreFilter";
-import AddTechnicianDrawer from "./components/AddTechnicianDrawer";
-import CreateTechnicianUserDrawer from "./components/CreateTechnicianUserDrawer";
 import ToggleTechnicianActive from "./components/ToggleTechnicianActive";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +46,11 @@ export default async function TechniciansPage({
   const selectedStoreId =
     typeof params.storeId === "string" ? params.storeId : undefined;
 
+  const searchQuery =
+    typeof params.q === "string" && params.q.trim().length > 0
+      ? params.q.trim()
+      : "";
+
   let currentStoreName = "All Stores";
 
   if (isMaster) {
@@ -65,17 +69,14 @@ export default async function TechniciansPage({
     if (store) currentStoreName = store.name;
   }
 
-  const techWhere: any = {};
+  const techWhere: Prisma.TechnicianWhereInput = {};
 
-  if (!canSeeAllStores(role)) {
-    const scopedStoreId = getScopedStoreId(role, userStoreId);
-    if (scopedStoreId) {
-      techWhere.storeId = scopedStoreId;
-    } else {
-      techWhere.storeId = "__never_match__";
-    }
-  } else if (selectedStoreId) {
-    techWhere.storeId = selectedStoreId;
+  if (searchQuery) {
+    techWhere.OR = [
+      { name: { contains: searchQuery, mode: "insensitive" } },
+      { email: { contains: searchQuery, mode: "insensitive" } },
+      { phone: { contains: searchQuery, mode: "insensitive" } },
+    ];
   }
 
   const technicians = await prisma.technician.findMany({
@@ -101,14 +102,18 @@ export default async function TechniciansPage({
   }
 
   return (
-    <div className="px-2 sm:px-4 md:px-6 py-4 md:py-8 space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-            Technicians — {currentStoreName}
+    <div className="px-2 sm:px-4 md:px-6 py-4 md:py-8 space-y-6">
+      {/* Header */}
+      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+            Technician List
           </h1>
-          <p className="text-sm text-gray-600">
-            View all technicians and their workload.
+          <p className="text-sm text-gray-500 mt-1">
+            Manage your team of technicians and their assignments.
+          </p>
+          <p className="text-xs text-gray-400 mt-0.5">
+            Scope: {currentStoreName}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-end">
@@ -120,80 +125,147 @@ export default async function TechniciansPage({
             />
           )}
           {isAdminLike(role) && !isTechnicianRole(role) && (
-            <AddTechnicianDrawer isMasterAdmin={isMaster} stores={stores} />
+            <Link
+              href="/technicians/new"
+              className="inline-flex items-center rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
+            >
+              Add Technician
+            </Link>
           )}
         </div>
+      </header>
+
+      {/* Search + filters + table card */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+          {/* Search */}
+          <form
+            className="relative w-full md:max-w-md"
+            action="/technicians"
+            method="get"
+          >
+            <input
+              name="q"
+              defaultValue={searchQuery}
+              className="w-full bg-gray-50 border border-gray-300 rounded pl-10 pr-4 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
+              placeholder="Search technicians by name, email, or phone..."
+              type="text"
+            />
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+              🔍
+            </span>
+          </form>
+
+          {/* Simple filter/sort placeholders to match design */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50"
+            >
+              <span className="text-base">⏱</span>
+              <span>Filter</span>
+            </button>
+            <button
+              type="button"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50"
+            >
+              <span className="text-base">↕</span>
+              <span>Sort By</span>
+            </button>
+          </div>
+        </div>
+
+        {technicians.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 bg-white">
+            No technicians found.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Technician ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Full Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Primary Skill
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Contact
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Work Orders
+                  </th>
+                  <th className="relative px-6 py-3">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {technicians.map((tech: TechnicianWithWorkOrders) => {
+                  const openCount = tech.workOrders.filter(
+                    (wo) =>
+                      wo.status !== "Completed" && wo.status !== "Cancelled"
+                  ).length;
+
+                  const statusLabel = tech.active ? "Available" : "Inactive";
+                  const statusClasses = tech.active
+                    ? "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                    : "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700";
+
+                  return (
+                    <tr key={tech.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {tech.id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {tech.name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {/* No primary skill field yet; placeholder */}
+                        —
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={statusClasses}>{statusLabel}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {tech.email}
+                        <br />
+                        {tech.phone ?? "—"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {openCount} open / {tech.workOrders.length} total
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <ToggleTechnicianActive
+                          id={tech.id}
+                          active={tech.active}
+                        />
+                        {Array.isArray((tech as any).users) &&
+                        (tech as any).users.length > 0 ? (
+                          <span className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                            Login created
+                          </span>
+                        ) : (
+                          <span className="mt-2 inline-flex items-center rounded-full bg-yellow-50 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                            No login
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      {technicians.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 bg-white">
-          No technicians found.
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b bg-gray-50 text-xs font-medium uppercase text-gray-500">
-              <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Phone</th>
-                <th className="px-4 py-3">Active</th>
-                <th className="px-4 py-3">Open WOs</th>
-                <th className="px-4 py-3">Total WOs</th>
-                <th className="px-4 py-3">Login</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {technicians.map((tech: TechnicianWithWorkOrders) => {
-                const openCount = tech.workOrders.filter(
-                  (wo) => wo.status !== "Completed" && wo.status !== "Cancelled"
-                ).length;
-
-                return (
-                  <tr
-                    key={tech.id}
-                    className="hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-900">
-                      {tech.name}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{tech.email}</td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {tech.phone ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 space-y-1">
-                      <span
-                        className={
-                          tech.active
-                            ? "inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"
-                            : "inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
-                        }
-                      >
-                        {tech.active ? "Active" : "Inactive"}
-                      </span>
-                      <div className="mt-1">
-                        <ToggleTechnicianActive id={tech.id} active={tech.active} />
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{openCount}</td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {tech.workOrders.length}
-                    </td>
-                    <td className="px-4 py-3">
-                      <CreateTechnicianUserDrawer
-                        technicianId={tech.id}
-                        technicianName={tech.name}
-                        technicianEmail={tech.email}
-                        hasLogin={Array.isArray((tech as any).users) && (tech as any).users.length > 0}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }

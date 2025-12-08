@@ -15,47 +15,56 @@ function getDaysUntilDue(dueDate: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!session || !isAdminLike((session.user as any)?.role)) {
+    if (!session || !isAdminLike((session.user as any)?.role)) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    const role = (session.user as any)?.role as string | undefined;
+    const userStoreId = ((session.user as any)?.storeId ?? null) as
+      | string
+      | null;
+    const urlStoreId = req.nextUrl.searchParams.get("storeId") || null;
+
+    const where: any = {};
+
+    if (canSeeAllStores(role)) {
+      if (urlStoreId) {
+        where.storeId = urlStoreId;
+      }
+    } else {
+      const scopedStoreId = getScopedStoreId(role, userStoreId);
+      if (scopedStoreId) {
+        where.storeId = scopedStoreId;
+      } else {
+        where.storeId = "__never_match__";
+      }
+    }
+
+    const now = new Date();
+    now.setUTCHours(0, 0, 0, 0);
+    const schedules = await prisma.preventiveSchedule.findMany({ where });
+    const data = schedules.map((s) => {
+      const daysUntilDue = getDaysUntilDue(s.nextDueDate.toISOString());
+      const due = daysUntilDue <= 0 && s.active;
+      return {
+        ...s,
+        daysUntilDue,
+        due,
+      };
+    });
+    return NextResponse.json({ success: true, data });
+  } catch (err) {
+    console.error("Error fetching schedules:", err);
+    // Fail soft with empty list so UI can still render
     return NextResponse.json(
-      { success: false, error: "Forbidden" },
-      { status: 403 }
+      { success: true, data: [] },
+      { status: 200 }
     );
   }
-
-  const role = (session.user as any)?.role as string | undefined;
-  const userStoreId = ((session.user as any)?.storeId ?? null) as
-    | string
-    | null;
-  const urlStoreId = req.nextUrl.searchParams.get("storeId") || null;
-
-  const where: any = {};
-
-  if (canSeeAllStores(role)) {
-    if (urlStoreId) {
-      where.storeId = urlStoreId;
-    }
-  } else {
-    const scopedStoreId = getScopedStoreId(role, userStoreId);
-    if (scopedStoreId) {
-      where.storeId = scopedStoreId;
-    } else {
-      where.storeId = "__never_match__";
-    }
-  }
-
-  const now = new Date();
-  now.setUTCHours(0,0,0,0);
-  const schedules = await prisma.preventiveSchedule.findMany({ where });
-  const data = schedules.map(s => {
-    const daysUntilDue = getDaysUntilDue(s.nextDueDate.toISOString());
-    const due = daysUntilDue <= 0 && s.active;
-    return {
-      ...s,
-      daysUntilDue,
-      due,
-    };
-  });
-  return NextResponse.json({ success: true, data });
 }

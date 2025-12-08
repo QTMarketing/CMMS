@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike, isTechnician as isTechnicianRole } from "@/lib/roles";
-import { sendWorkOrderAssignedEmail } from "@/lib/email";
+import { sendWorkOrderAssignedEmail, sendWorkOrderUpdateEmail } from "@/lib/email";
 
 const VALID_STATUSES = ["Open", "In Progress", "Completed", "Cancelled"] as const;
 type Status = (typeof VALID_STATUSES)[number];
@@ -107,8 +107,15 @@ export async function PATCH(
     status: nextStatus,
     completedAt,
   };
+  // Technicians and admins can add attachments
+  if (Object.prototype.hasOwnProperty.call(body, "attachments")) {
+    if (Array.isArray(body.attachments)) {
+      data.attachments = body.attachments;
+    }
+  }
+
   // Only admins may change priority / description / assignment / due date. Technicians
-  // are limited to status transitions on their own work orders.
+  // are limited to status transitions and attachments on their own work orders.
   if (isAdmin) {
     if (body.priority !== undefined) {
       data.priority = body.priority;
@@ -162,6 +169,7 @@ export async function PATCH(
   }
 
   const previousTechnicianId = existing.assignedToId;
+  const previousStatus = existing.status;
 
   const updated = await prisma.workOrder.update({
     where: { id },
@@ -171,7 +179,9 @@ export async function PATCH(
   const newTechnicianId = updated.assignedToId;
   const technicianChanged =
     !!newTechnicianId && newTechnicianId !== previousTechnicianId;
+  const statusChanged = updated.status !== previousStatus;
 
+  // Notify technician if assigned
   if (technicianChanged && newTechnicianId) {
     try {
       const detailed = await prisma.workOrder.findUnique({
@@ -191,6 +201,12 @@ export async function PATCH(
           store: {
             select: {
               name: true,
+            },
+          },
+          createdBy: {
+            select: {
+              email: true,
+              role: true,
             },
           },
         },
@@ -222,7 +238,76 @@ export async function PATCH(
     }
   }
 
-  return NextResponse.json(updated);
+  // Notify user (creator) if work order is updated (status change, assignment, etc.)
+  if (updated.createdById && (statusChanged || technicianChanged || isAdmin)) {
+    try {
+      const detailed = await prisma.workOrder.findUnique({
+        where: { id: updated.id },
+        include: {
+          createdBy: {
+            select: {
+              email: true,
+              role: true,
+            },
+          },
+          assignedTo: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      });
+
+      const creator = detailed?.createdBy;
+      // Only notify if creator is a USER (not admin/technician)
+      if (creator?.email && creator.role === "USER") {
+        let updateMessage = "";
+        if (statusChanged) {
+          updateMessage = `Status changed to ${updated.status}`;
+        }
+        if (technicianChanged && detailed?.assignedTo) {
+          updateMessage += updateMessage
+            ? `. Assigned to ${detailed.assignedTo.name}`
+            : `Assigned to ${detailed.assignedTo.name}`;
+        }
+        if (isAdmin && !statusChanged && !technicianChanged) {
+          updateMessage = "Work order has been updated";
+        }
+
+        await sendWorkOrderUpdateEmail({
+          userEmail: creator.email,
+          workOrderId: updated.id,
+          workOrderTitle: updated.title,
+          updateMessage: updateMessage || "Work order has been updated",
+          status: updated.status,
+        });
+      }
+    } catch (error) {
+      console.error(
+        "[workorders] Failed to send work order update email to user",
+        error
+      );
+    }
+  }
+
+  // Return the updated work order with all relations
+  const updatedWithRelations = await prisma.workOrder.findUnique({
+    where: { id: updated.id },
+    include: {
+      asset: true,
+      assignedTo: true,
+      notes: true,
+      createdBy: {
+        select: {
+          id: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+  });
+
+  return NextResponse.json({ success: true, data: updatedWithRelations });
 }
 
 export async function DELETE(

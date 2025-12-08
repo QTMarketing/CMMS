@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, active, storeId: rawStoreId } = body ?? {};
+    const { name, email, phone, active, storeId: rawStoreId, password } = body ?? {};
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
@@ -84,6 +85,32 @@ export async function POST(request: Request) {
     if (!emailPattern.test(email.trim())) {
       return NextResponse.json(
         { success: false, error: "Invalid email address." },
+        { status: 400 }
+      );
+    }
+
+    if (!password || typeof password !== "string" || !password.trim()) {
+      return NextResponse.json(
+        { success: false, error: "Password is required." },
+        { status: 400 }
+      );
+    }
+
+    if (password.trim().length < 6) {
+      return NextResponse.json(
+        { success: false, error: "Password must be at least 6 characters." },
+        { status: 400 }
+      );
+    }
+
+    // Check if email is already in use (either as technician or user)
+    const existingUser = await prisma.user.findUnique({
+      where: { email: email.trim() },
+    });
+
+    if (existingUser) {
+      return NextResponse.json(
+        { success: false, error: "Email is already in use." },
         { status: 400 }
       );
     }
@@ -133,14 +160,28 @@ export async function POST(request: Request) {
       );
     }
 
+    // Create technician first
+    const technicianId = crypto.randomUUID();
     const newTech = await prisma.technician.create({
       data: {
-        id: crypto.randomUUID(),
+        id: technicianId,
         name: name.trim(),
         email: email.trim(),
         phone: phone && typeof phone === "string" ? phone.trim() : null,
         active: typeof active === "boolean" ? active : true,
         storeId: store.id,
+      },
+    });
+
+    // Create user account for login
+    const hashedPassword = await bcrypt.hash(password.trim(), 10);
+    await prisma.user.create({
+      data: {
+        email: email.trim(),
+        password: hashedPassword,
+        role: "TECHNICIAN",
+        storeId: store.id,
+        technicianId: technicianId,
       },
     });
 

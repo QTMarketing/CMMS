@@ -1,0 +1,51 @@
+{
+  "store": {
+    "id": "cmish32j00001rgotyaj8cjc2",
+    "name": "LP1`",
+    "code": "LP-01"
+  },
+  "period": {
+    "start": "2025-11-07",
+    "end": "2025-12-07"
+  },
+  "summary": {
+    "totalWorkOrders": 1,
+    "openWorkOrders": 0,
+    "inProgressWorkOrders": 1,
+    "completedWorkOrders": 0,
+    "cancelledWorkOrders": 0,
+    "totalAssets": 1,
+    "activeAssets": 1,
+    "totalPMSchedules": 0,
+    "activePMSchedules": 0,
+    "totalTechnicians": 0,
+    "activeTechnicians": 0
+  },
+  "workOrders": [
+    {
+      "id": "Wrzbx_TfW5fJ33hj02qDK",
+      "title": "vnni",
+      "status": "In Progress",
+      "priority": "High",
+      "createdAt": "2025-12-07T13:30:45.615Z",
+      "completedAt": null,
+      "dueDate": "2025-12-12T12:00:00.000Z",
+      "assetName": "ijahvb",
+      "assignedToName": "Bipin Yogi",
+      "createdByEmail": "lp@quicktrackinc.com"
+    }
+  ],
+  "assets": [
+    {
+      "id": "a33c54d4-bc88-4fb9-875c-711270315ba2",
+      "name": "ijahvb",
+      "location": "jbv",
+      "status": "Active",
+      "lastMaintenanceDate": null,
+      "nextMaintenanceDate": null
+    }
+  ],
+  "pmSchedules": [],
+  "technicians": [],
+  "generatedAt": "2025-12-07T15:12:38.209Z"
+}

@@ -5,11 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike } from "@/lib/roles";
 
-const ALLOWED_ROLES = ["ADMIN", "TECHNICIAN"] as const;
+const ALLOWED_ROLES = ["MASTER_ADMIN", "STORE_ADMIN", "ADMIN", "TECHNICIAN", "USER"] as const;
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -23,7 +23,7 @@ export async function PATCH(
       );
     }
 
-    const userId = params.id;
+    const { id: userId } = await params;
 
     const existing = await prisma.user.findUnique({
       where: { id: userId },

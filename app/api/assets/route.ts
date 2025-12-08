@@ -7,38 +7,44 @@ import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 import { isAdminLike, isMasterAdmin } from "@/lib/roles";
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!session) {
-    return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
-  }
-
-  const role = (session.user as any)?.role as string | undefined;
-  const userStoreId = ((session.user as any)?.storeId ?? null) as
-    | string
-    | null;
-
-  const where: any = {};
-  const urlStoreId = req.nextUrl.searchParams.get("storeId") || null;
-
-  if (canSeeAllStores(role)) {
-    if (urlStoreId) {
-      where.storeId = urlStoreId;
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
-  } else {
-    const scopedStoreId = getScopedStoreId(role, userStoreId);
-    if (scopedStoreId) {
-      where.storeId = scopedStoreId;
+
+    const role = (session.user as any)?.role as string | undefined;
+    const userStoreId = ((session.user as any)?.storeId ?? null) as
+      | string
+      | null;
+
+    const where: any = {};
+    const urlStoreId = req.nextUrl.searchParams.get("storeId") || null;
+
+    if (canSeeAllStores(role)) {
+      if (urlStoreId) {
+        where.storeId = urlStoreId;
+      }
     } else {
-      where.storeId = "__never_match__";
+      const scopedStoreId = getScopedStoreId(role, userStoreId);
+      if (scopedStoreId) {
+        where.storeId = scopedStoreId;
+      } else {
+        where.storeId = "__never_match__";
+      }
     }
-  }
 
-  const items = await prisma.asset.findMany({ where });
-  return NextResponse.json(items);
+    const items = await prisma.asset.findMany({ where });
+    return NextResponse.json(items);
+  } catch (err) {
+    console.error("Error fetching assets:", err);
+    // Fail soft with empty list so UI can still render
+    return NextResponse.json([], { status: 200 });
+  }
 }
 
 export async function POST(request: Request) {

@@ -11,7 +11,7 @@ type StoreOption = {
   code?: string | null;
 };
 
-const roleOptions = ["MASTER_ADMIN", "STORE_ADMIN", "TECHNICIAN"] as const;
+const roleOptions = ["MASTER_ADMIN", "STORE_ADMIN", "ADMIN", "TECHNICIAN", "USER"] as const;
 
 type Props = {
   stores: StoreOption[];
@@ -49,9 +49,9 @@ export default function AddUserDrawer({ stores }: Props) {
       return "Password must be at least 6 characters.";
 
     const needsStore =
-      role === "STORE_ADMIN" || role === "TECHNICIAN";
+      role === "STORE_ADMIN" || role === "TECHNICIAN" || role === "USER";
     if (needsStore && !storeId) {
-      return "Store is required for store admins and technicians.";
+      return "Store is required for store admins, technicians, and users.";
     }
     return null;
   }
@@ -128,8 +128,8 @@ export default function AddUserDrawer({ stores }: Props) {
             <h2 className="text-lg font-semibold text-gray-900">Add User</h2>
             <p className="mt-1 text-xs text-gray-500">
               Create a new application user. Use MASTER_ADMIN for global
-              management, STORE_ADMIN for a single store, and TECHNICIAN
-              for field users.
+              management, STORE_ADMIN for a single store, TECHNICIAN for field users,
+              and USER for store-level users who can create work orders and requests.
             </p>
           </div>
 
@@ -200,7 +200,7 @@ export default function AddUserDrawer({ stores }: Props) {
             </select>
           </div>
 
-          {(role === "STORE_ADMIN" || role === "TECHNICIAN") && (
+          {(role === "STORE_ADMIN" || role === "TECHNICIAN" || role === "USER") && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
                 Store <span className="text-red-500">*</span>
@@ -219,7 +219,7 @@ export default function AddUserDrawer({ stores }: Props) {
                 ))}
               </select>
               <p className="mt-1 text-[11px] text-gray-500">
-                Store admins and technicians must belong to a specific store.
+                Store admins, technicians, and users must belong to a specific store.
               </p>
             </div>
           )}
