@@ -4,7 +4,7 @@ import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View, useColorSch
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useWorkStore, WorkOrderStatus } from '../../store/useWorkStore';
+import { useWorkStore, WorkOrderStatus, type WorkOrder } from '../../store/useWorkStore';
 
 const statusConfig: Record<string, { 
   icon: keyof typeof Ionicons.glyphMap; 
@@ -86,9 +86,14 @@ export default function HistoryScreen() {
         return new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime();
       case 'status':
         return a.status.localeCompare(b.status);
-      case 'priority':
-        const priorityOrder = { high: 3, medium: 2, low: 1 };
+      case 'priority': {
+        const priorityOrder: Record<WorkOrder['priority'], number> = {
+          High: 3,
+          Medium: 2,
+          Low: 1,
+        };
         return priorityOrder[b.priority] - priorityOrder[a.priority];
+      }
       default:
         return 0;
     }
@@ -262,21 +267,25 @@ export default function HistoryScreen() {
                                 Priority
                               </Text>
                               <View className="flex-row items-center gap-2">
-                                <View className={`px-2.5 py-1 rounded-full ${
-                                  order.priority === 'high' 
-                                    ? 'bg-red-100 dark:bg-red-900' 
-                                    : order.priority === 'medium'
-                                    ? 'bg-yellow-100 dark:bg-yellow-900'
-                                    : 'bg-green-100 dark:bg-green-900'
-                                }`}>
-                                  <Text className={`text-xs font-semibold ${
-                                    order.priority === 'high'
-                                      ? 'text-red-700 dark:text-red-300'
-                                      : order.priority === 'medium'
-                                      ? 'text-yellow-700 dark:text-yellow-300'
-                                      : 'text-green-700 dark:text-green-300'
-                                  }`}>
-                                    {order.priority.toUpperCase()}
+                                <View
+                                  className={`px-2.5 py-1 rounded-full ${
+                                    order.priority === 'High'
+                                      ? 'bg-red-100 dark:bg-red-900'
+                                      : order.priority === 'Medium'
+                                      ? 'bg-yellow-100 dark:bg-yellow-900'
+                                      : 'bg-green-100 dark:bg-green-900'
+                                  }`}
+                                >
+                                  <Text
+                                    className={`text-xs font-semibold ${
+                                      order.priority === 'High'
+                                        ? 'text-red-700 dark:text-red-300'
+                                        : order.priority === 'Medium'
+                                        ? 'text-yellow-700 dark:text-yellow-300'
+                                        : 'text-green-700 dark:text-green-300'
+                                    }`}
+                                  >
+                                    {order.priority.toLowerCase()}
                                   </Text>
                                 </View>
                               </View>

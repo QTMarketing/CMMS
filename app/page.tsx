@@ -12,16 +12,16 @@ import {
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import TechnicianDashboard from "../components/dashboard/TechnicianDashboard";
 
-// Helper types/functions for date handling
-export type DateInput = string | Date | null | undefined;
+// Helper types/functions for date handling (kept internal to this file)
+type DateInput = string | Date | null | undefined;
 
-export function formatDate(date: DateInput) {
+function formatDate(date: DateInput) {
   if (!date) return "";
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toLocaleDateString();
 }
 
-export function toDayKey(date: DateInput) {
+function toDayKey(date: DateInput) {
   if (!date) return "";
   const d = typeof date === "string" ? new Date(date) : date;
   return d.toISOString().slice(0, 10);

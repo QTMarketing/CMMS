@@ -14,7 +14,7 @@ export default function PartsPage() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
-  const [parts, setParts] = useState([]);
+  const [parts, setParts] = useState<any[]>([]);
   const [stores, setStores] = useState<any[]>([]);
   const searchParams = useSearchParams();
   const selectedStoreId = searchParams.get("storeId") || "";

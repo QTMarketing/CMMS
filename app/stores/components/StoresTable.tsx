@@ -8,14 +8,16 @@ type Store = {
   id: string;
   name: string;
   code: string | null;
+  // Match server/store shape, including optional address
+  address?: string | null;
   city: string | null;
   state: string | null;
   timezone: string | null;
   createdAt: Date | string;
-  users?: Array<{
+  users?: {
     email: string;
     role: string;
-  }>;
+  }[];
 };
 
 type StoresTableProps = {

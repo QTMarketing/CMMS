@@ -1,3 +1,5 @@
+import type { Asset } from "@/lib/data/assets";
+import type { WorkOrder } from "@/lib/data/workOrders";
 import Badge from "../ui/Badge";
 
 const statusColors: Record<string, string> = {

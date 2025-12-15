@@ -39,7 +39,7 @@ function getPmStatus(nextDueDate: Date | null | undefined) {
 }
 
 type PageProps = {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 };
 
 export default async function PmScheduleDetailPage({ params }: PageProps) {
@@ -60,7 +60,7 @@ export default async function PmScheduleDetailPage({ params }: PageProps) {
     redirect("/workorders");
   }
 
-  const id = params.id;
+  const { id } = await params;
 
   // Use existing Prisma model: PreventiveSchedule
   const pm = await prisma.preventiveSchedule.findUnique({

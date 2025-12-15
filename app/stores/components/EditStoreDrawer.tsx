@@ -9,7 +9,8 @@ type Store = {
   id: string;
   name: string;
   code: string | null;
-  address: string | null;
+  // Address may be undefined for some callers; treat as optional in the type.
+  address?: string | null;
   city: string | null;
   state: string | null;
   timezone: string | null;

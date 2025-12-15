@@ -22,8 +22,9 @@ export async function POST(req: NextRequest) {
     const userStoreId = ((session.user as any)?.storeId ?? null) as string | null;
 
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    const storeIdParam = formData.get("storeId") as string | null;
+    // Cast to any to avoid TS lib mismatch between Node and DOM FormData types
+    const file = (formData as any).get("file") as File | null;
+    const storeIdParam = (formData as any).get("storeId") as string | null;
 
     if (!file) {
       return NextResponse.json(

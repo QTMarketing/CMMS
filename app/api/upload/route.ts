@@ -33,9 +33,11 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    const fileType = (formData.get("fileType") as string) || "workorder"; // workorder, asset, preventive-maintenance, report
-    const storeIdParam = formData.get("storeId") as string | null;
+    // Cast to any to avoid TS lib mismatch between Node and DOM FormData types
+    const fd: any = formData as any;
+    const file = fd.get("file") as File | null;
+    const fileType = (fd.get("fileType") as string) || "workorder"; // workorder, asset, preventive-maintenance, report
+    const storeIdParam = fd.get("storeId") as string | null;
 
     if (!file) {
       return NextResponse.json(

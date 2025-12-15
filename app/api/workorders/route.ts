@@ -365,12 +365,12 @@ export async function POST(request: Request) {
         });
 
         if (technician?.email) {
-          const store =
-            newWorkOrder.storeId &&
-            (await prisma.store.findUnique({
-              where: { id: newWorkOrder.storeId },
-              select: { name: true },
-            }));
+          const store = newWorkOrder.storeId
+            ? await prisma.store.findUnique({
+                where: { id: newWorkOrder.storeId },
+                select: { name: true },
+              })
+            : null;
 
           const dueDateString = newWorkOrder.dueDate
             ? newWorkOrder.dueDate.toLocaleString()
