@@ -6,6 +6,12 @@ import { authOptions } from "@/lib/auth";
 import AppSessionProvider from "@/components/SessionProvider";
 import type { Metadata } from "next";
 
+// Ensure all routes, including the default not-found page, are rendered dynamically
+// at request time instead of being statically generated during the build. This
+// avoids build-time failures when optional services like the database are not
+// reachable in the build environment.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Lamafix - CMMS Dashboard",
   description: "Computerized Maintenance Management System",
