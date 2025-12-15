@@ -112,28 +112,36 @@ export default async function DashboardPage() {
       assetWhere.storeId = userStoreId;
     }
 
-    [allWorkOrders, assets, schedules] = await Promise.all([
-    prisma.workOrder.findMany({
+    // Use Promise.allSettled to prevent one failing query from blocking others
+    const results = await Promise.allSettled([
+      prisma.workOrder.findMany({
         where: workOrderWhere,
-      orderBy: { createdAt: "desc" },
-      include: {
-        asset: {
-          select: { name: true },
-        },
+        orderBy: { createdAt: "desc" },
+        include: {
+          asset: {
+            select: { name: true },
+          },
           assignedTo: {
             select: {
               id: true,
               name: true,
             },
           },
-      },
-    }),
+        },
+      }),
       prisma.asset.findMany({
         where: assetWhere,
         orderBy: { name: "asc" },
       }),
-    prisma.preventiveSchedule.findMany(),
-  ]);
+      prisma.preventiveSchedule.findMany({
+        take: 100, // Limit to prevent large queries
+      }),
+    ]);
+
+    // Extract results, using empty arrays if any query failed
+    allWorkOrders = results[0].status === "fulfilled" ? results[0].value : [];
+    assets = results[1].status === "fulfilled" ? results[1].value : [];
+    schedules = results[2].status === "fulfilled" ? results[2].value : [];
   } catch (error: any) {
     console.error("Error fetching dashboard data:", error);
     // If database connection fails, show empty data rather than crashing

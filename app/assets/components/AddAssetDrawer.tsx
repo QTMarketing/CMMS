@@ -37,6 +37,19 @@ export default function AddAssetDrawer() {
   const [loading, setLoading] = useState(false);
   const [loadingStores, setLoadingStores] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // New fields
+  const [assetId, setAssetId] = useState<string>("");
+  const [parentAssetId, setParentAssetId] = useState<string>("");
+  const [parentAssetIdNumber, setParentAssetIdNumber] = useState<string>("");
+  const [parentAssetName, setParentAssetName] = useState<string>("");
+  const [make, setMake] = useState("");
+  const [model, setModel] = useState("");
+  const [category, setCategory] = useState("");
+  const [toolCheckOut, setToolCheckOut] = useState<string>("0");
+  const [checkOutRequiresApproval, setCheckOutRequiresApproval] = useState<string>("0");
+  const [defaultWOTemplate, setDefaultWOTemplate] = useState<string>("");
+  const [parentAssets, setParentAssets] = useState<any[]>([]);
 
   const canCreate = isAdminLike(role);
   const isMaster = isMasterAdmin(role);
@@ -67,6 +80,34 @@ export default function AddAssetDrawer() {
     }
   }, [isMaster, userStoreId]);
 
+  // Load parent assets for dropdown
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/assets")
+      .then((res) => res.json())
+      .then((data) => {
+        const assets = Array.isArray(data) ? data : [];
+        setParentAssets(assets);
+      })
+      .catch(() => {
+        // Ignore errors
+      });
+  }, [open]);
+
+  // Update parent asset name when parent asset is selected
+  useEffect(() => {
+    if (parentAssetId) {
+      const selectedParent = parentAssets.find((a) => a.id === parentAssetId);
+      if (selectedParent) {
+        setParentAssetName(selectedParent.name || "");
+        setParentAssetIdNumber(selectedParent.assetId?.toString() || "");
+      }
+    } else {
+      setParentAssetName("");
+      setParentAssetIdNumber("");
+    }
+  }, [parentAssetId, parentAssets]);
+
   const storeOptions = useMemo(
     () =>
       stores.map((s) => ({
@@ -80,6 +121,16 @@ export default function AddAssetDrawer() {
     setName("");
     setLocation("");
     setStatus("Active");
+    setAssetId("");
+    setParentAssetId("");
+    setParentAssetIdNumber("");
+    setParentAssetName("");
+    setMake("");
+    setModel("");
+    setCategory("");
+    setToolCheckOut("0");
+    setCheckOutRequiresApproval("0");
+    setDefaultWOTemplate("");
     if (isMaster) {
       setStoreId("");
     }
@@ -125,6 +176,16 @@ export default function AddAssetDrawer() {
           location: location.trim() || undefined,
           status,
           storeId: bodyStoreId,
+          assetId: assetId.trim() ? parseInt(assetId.trim(), 10) : undefined,
+          parentAssetId: parentAssetId || undefined,
+          parentAssetIdNumber: parentAssetIdNumber.trim() ? parseInt(parentAssetIdNumber.trim(), 10) : undefined,
+          parentAssetName: parentAssetName.trim() || undefined,
+          make: make.trim() || undefined,
+          model: model.trim() || undefined,
+          category: category.trim() || undefined,
+          toolCheckOut: parseInt(toolCheckOut, 10) || 0,
+          checkOutRequiresApproval: parseInt(checkOutRequiresApproval, 10) || 0,
+          defaultWOTemplate: defaultWOTemplate.trim() ? parseInt(defaultWOTemplate.trim(), 10) : undefined,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -227,6 +288,147 @@ export default function AddAssetDrawer() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Asset ID (Number)
+            </label>
+            <input
+              type="number"
+              value={assetId}
+              onChange={(e) => setAssetId(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Optional numeric asset ID"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Parent Asset
+            </label>
+            <select
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={parentAssetId}
+              onChange={(e) => setParentAssetId(e.target.value)}
+            >
+              <option value="">None (Top-level asset)</option>
+              {parentAssets.map((asset) => (
+                <option key={asset.id} value={asset.id}>
+                  {asset.assetId ? `#${asset.assetId} - ` : ""}{asset.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {parentAssetId && (
+            <>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Parent Asset ID (Number)
+                </label>
+                <input
+                  type="number"
+                  value={parentAssetIdNumber}
+                  onChange={(e) => setParentAssetIdNumber(e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Auto-filled from selected parent"
+                  readOnly
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Parent Asset Name
+                </label>
+                <input
+                  type="text"
+                  value={parentAssetName}
+                  onChange={(e) => setParentAssetName(e.target.value)}
+                  className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Auto-filled from selected parent"
+                />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Make
+            </label>
+            <input
+              type="text"
+              value={make}
+              onChange={(e) => setMake(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="e.g., Caterpillar, John Deere"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Model
+            </label>
+            <input
+              type="text"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="e.g., CAT 320D, JD 850K"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Category
+            </label>
+            <input
+              type="text"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="e.g., Heavy Equipment, Vehicles, Tools"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Tool Check-Out (Number)
+            </label>
+            <input
+              type="number"
+              value={toolCheckOut}
+              onChange={(e) => setToolCheckOut(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              min="0"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Check-Out Requires Approval
+            </label>
+            <select
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              value={checkOutRequiresApproval}
+              onChange={(e) => setCheckOutRequiresApproval(e.target.value)}
+            >
+              <option value="0">No Approval Required</option>
+              <option value="1">Requires Approval</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Default WO Template (Number)
+            </label>
+            <input
+              type="number"
+              value={defaultWOTemplate}
+              onChange={(e) => setDefaultWOTemplate(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Optional template ID"
+            />
           </div>
 
           {isMaster && (

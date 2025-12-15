@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type UiStatus = "Pending" | "In Progress" | "Completed" | "On Hold";
+type UiStatus = "Pending" | "In Progress" | "Pending Review" | "Completed" | "On Hold";
 
 type Props = {
   workOrderId: string;
@@ -12,6 +12,7 @@ type Props = {
 const backendToUi: Record<string, UiStatus> = {
   Open: "Pending",
   "In Progress": "In Progress",
+  "Pending Review": "Pending Review",
   Completed: "Completed",
   Cancelled: "On Hold",
 };
@@ -19,6 +20,7 @@ const backendToUi: Record<string, UiStatus> = {
 const uiToBackend: Record<UiStatus, string> = {
   Pending: "Open",
   "In Progress": "In Progress",
+  "Pending Review": "Pending Review",
   Completed: "Completed",
   "On Hold": "Cancelled",
 };
@@ -26,6 +28,7 @@ const uiToBackend: Record<UiStatus, string> = {
 const STATUS_ORDER: UiStatus[] = [
   "Pending",
   "In Progress",
+  "Pending Review",
   "On Hold",
   "Completed",
 ];

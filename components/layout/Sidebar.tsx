@@ -24,14 +24,18 @@ import TechnicianStatusToggle from "@/components/technicians/TechnicianStatusTog
 const allNavItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Work Orders", href: "/workorders", icon: ClipboardList },
-  { name: "Assets", href: "/assets", icon: Package },
-  { name: "Inventory", href: "/inventory", icon: Warehouse },
   { name: "Preventive Maintenance Schedules", href: "/pm", icon: Calendar },
   { name: "Technicians", href: "/technicians", icon: Wrench },
   { name: "Requests", href: "/requests", icon: FileText },
   { name: "Stores", href: "/stores", icon: Store },
   { name: "Users", href: "/users", icon: Users },
   { name: "Reports", href: "/reports", icon: BarChart3 },
+];
+
+// Store sub-items (Assets and Parts)
+const storeSubItems = [
+  { name: "Assets", href: "/assets", icon: Package },
+  { name: "Parts", href: "/inventory", icon: Warehouse },
 ];
 
 export default function Sidebar({
@@ -114,8 +118,10 @@ export default function Sidebar({
   // Filter nav items based on role
   // Technicians can only see Dashboard and PM Schedules
   // Users can only see Work Orders and Requests (to create work orders and requests)
-  // Reports is only visible to MASTER_ADMIN
+  // Reports is visible to ADMIN and STORE_ADMIN (not just MASTER_ADMIN)
+  // Users management is only visible to MASTER_ADMIN
   const isMasterAdmin = role === "MASTER_ADMIN";
+  const isAdmin = role === "ADMIN" || role === "STORE_ADMIN";
   const navItems = isTechnician
     ? allNavItems.filter(
         (item) => item.href === "/" || item.href === "/pm"
@@ -126,9 +132,13 @@ export default function Sidebar({
         )
       : allNavItems.filter(
           (item) => {
-            // Reports only for master admin
-            if (item.href === "/reports") {
+            // Users only for master admin
+            if (item.href === "/users") {
               return isMasterAdmin;
+            }
+            // Reports for admin and master admin (not for regular users)
+            if (item.href === "/reports") {
+              return isMasterAdmin || isAdmin;
             }
             return true;
           }
@@ -175,20 +185,51 @@ export default function Sidebar({
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
+            const isStores = item.href === "/stores";
+            // Only highlight Stores if we're on Stores, Assets, or Parts pages
+            const isStoresPageActive = isStores && (pathname === "/stores" || pathname === "/assets" || pathname === "/inventory");
+            // Only apply Stores active state to the Stores item itself
+            const shouldHighlight = isStores ? isStoresPageActive : isActive;
+            
             return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition ${
-                  isActive
-                    ? "bg-[#4361EE] text-white"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-                }`}
-                onClick={() => isMobile && onClose && onClose()}
-              >
-                <Icon className="h-5 w-5" />
-                <span>{item.name}</span>
-              </Link>
+              <div key={item.name}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg transition ${
+                    shouldHighlight
+                      ? "bg-[#4361EE] text-white"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  }`}
+                  onClick={() => isMobile && onClose && onClose()}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.name}</span>
+                </Link>
+                {/* Show Assets and Parts nested under Stores */}
+                {isStores && !isTechnician && !isUser && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    {storeSubItems.map((subItem) => {
+                      const isSubActive = pathname === subItem.href;
+                      const SubIcon = subItem.icon;
+                      return (
+                        <Link
+                          key={subItem.name}
+                          href={subItem.href}
+                          className={`flex items-center gap-3 px-4 py-2 text-xs font-medium rounded-lg transition ${
+                            isSubActive
+                              ? "bg-[#4361EE] text-white"
+                              : "text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          }`}
+                          onClick={() => isMobile && onClose && onClose()}
+                        >
+                          <SubIcon className="h-4 w-4" />
+                          <span>{subItem.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>

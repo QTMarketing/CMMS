@@ -11,25 +11,37 @@ import {
 } from "@/lib/roles";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 import { sendWorkOrderAssignedEmail } from "@/lib/email";
+import { verifyMobileToken } from "@/lib/mobileAuth";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    // Try NextAuth session first (for web)
+    let session = await getServerSession(authOptions);
+    let role: string | undefined;
+    let technicianId: string | null = null;
+    let userStoreId: string | null = null;
 
+    // If no session, try mobile token
     if (!session) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      const mobileUser = verifyMobileToken(req);
+      if (mobileUser) {
+        role = mobileUser.role;
+        userStoreId = mobileUser.storeId || null;
+      } else {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+    } else {
+      role = (session.user as any)?.role as string | undefined;
+      technicianId = ((session.user as any)?.technicianId ?? null) as
+        | string
+        | null;
+      userStoreId = ((session.user as any)?.storeId ?? null) as
+        | string
+        | null;
     }
-
-    const role = (session.user as any)?.role as string | undefined;
-    const technicianId = ((session.user as any)?.technicianId ?? null) as
-      | string
-      | null;
-    const userStoreId = ((session.user as any)?.storeId ?? null) as
-      | string
-      | null;
 
     const searchParams = req.nextUrl.searchParams;
     const urlStoreId = searchParams.get("storeId") || null;
@@ -126,19 +138,35 @@ export async function GET(req: NextRequest) {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    // Try NextAuth session first (for web)
+    let session = await getServerSession(authOptions);
+    let role: string | undefined;
+    let userStoreId: string | null = null;
+    let userId: string | undefined;
 
+    // If no session, try mobile token
     if (!session) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      const req = new NextRequest(request.url, {
+        headers: request.headers,
+      });
+      const mobileUser = verifyMobileToken(req);
+      if (mobileUser) {
+        role = mobileUser.role;
+        userStoreId = mobileUser.storeId || null;
+        userId = mobileUser.id;
+      } else {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+    } else {
+      role = (session.user as any)?.role as string | undefined;
+      userStoreId = ((session.user as any)?.storeId ?? null) as
+        | string
+        | null;
+      userId = (session.user as any)?.id as string | undefined;
     }
-
-    const role = (session.user as any)?.role as string | undefined;
-    const userStoreId = ((session.user as any)?.storeId ?? null) as
-      | string
-      | null;
 
     // Only admin-like roles and USER may create work orders; TECHNICIAN explicitly forbidden.
     const canCreate = isAdminLike(role) || role === "USER";
@@ -298,8 +326,7 @@ export async function POST(request: Request) {
       normalizedDueDate = new Date(ms);
     }
 
-    // Get the current user ID for createdById
-    const userId = (session.user as any)?.id as string | undefined;
+    // userId is already set above from session or mobile token
 
     const newWorkOrder = await prisma.workOrder.create({
       data: {

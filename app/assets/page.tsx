@@ -17,6 +17,7 @@ import DashboardHeader, {
   DashboardSearchItem,
 } from "@/components/dashboard/DashboardHeader";
 import AddAssetDrawer from "./components/AddAssetDrawer";
+import BulkImportDrawer from "@/components/BulkImportDrawer";
 
 const statusColors: Record<string, string> = {
   Active: "bg-green-100 text-green-600",
@@ -177,7 +178,13 @@ export default function AssetsPage() {
       return (
         a.id?.toLowerCase().includes(q) ||
         a.name?.toLowerCase().includes(q) ||
-        a.location?.toLowerCase().includes(q)
+        a.location?.toLowerCase().includes(q) ||
+        a.make?.toLowerCase().includes(q) ||
+        a.model?.toLowerCase().includes(q) ||
+        a.category?.toLowerCase().includes(q) ||
+        a.parentAssetName?.toLowerCase().includes(q) ||
+        (a.assetId && a.assetId.toString().includes(q)) ||
+        (a.parentAssetIdNumber && a.parentAssetIdNumber.toString().includes(q))
       );
     });
   }, [sorted, search]);
@@ -241,7 +248,10 @@ export default function AssetsPage() {
         <h1 className="text-3xl font-black tracking-tight text-slate-900">
           Assets
         </h1>
+        <div className="flex items-center gap-2">
+          <BulkImportDrawer type="assets" />
         <AddAssetDrawer />
+        </div>
       </header>
 
       {/* Toolbar & filters */}
@@ -322,11 +332,18 @@ export default function AssetsPage() {
                 </th>
                 <th className="p-4">Asset ID</th>
                 <th className="p-4">Asset Name</th>
+                <th className="p-4">Parent Asset ID</th>
+                <th className="p-4">Parent Asset Name</th>
+                <th className="p-4">Tool Check-Out</th>
+                <th className="p-4">Check-Out Approval</th>
+                <th className="p-4">Default WO Template</th>
+                <th className="p-4">Make</th>
+                <th className="p-4">Model</th>
+                <th className="p-4">Category</th>
                 <th className="p-4">Location</th>
                 <th className="p-4">Status</th>
                 <th className="p-4">Last Maintenance</th>
                 <th className="p-4">Next Maintenance</th>
-                <th className="p-4">Next Due (days)</th>
                 <th className="p-4">Total WOs</th>
                 <th className="p-4">Open WOs</th>
                 <th className="p-4">PM</th>
@@ -336,7 +353,7 @@ export default function AssetsPage() {
               {visibleAssets.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={11}
+                    colSpan={18}
                     className="px-4 py-8 text-center text-slate-400"
                   >
                     No assets found.
@@ -377,7 +394,7 @@ export default function AssetsPage() {
                         />
                       </td>
                       <td className="p-4 align-top font-mono text-xs text-slate-700">
-                        {a.id}
+                        {a.assetId ?? "—"}
                       </td>
                       <td className="p-4 align-top">
                         <Link
@@ -389,7 +406,31 @@ export default function AssetsPage() {
                         </Link>
                       </td>
                       <td className="p-4 align-top text-slate-600">
-                        {a.location}
+                        {a.parentAssetIdNumber ?? "—"}
+                      </td>
+                      <td className="p-4 align-top text-slate-600">
+                        {a.parentAssetName ?? "—"}
+                      </td>
+                      <td className="p-4 align-top text-slate-600">
+                        {a.toolCheckOut ?? 0}
+                      </td>
+                      <td className="p-4 align-top text-slate-600">
+                        {a.checkOutRequiresApproval === 1 ? "Yes" : "No"}
+                      </td>
+                      <td className="p-4 align-top text-slate-600">
+                        {a.defaultWOTemplate ?? "—"}
+                      </td>
+                      <td className="p-4 align-top text-slate-600">
+                        {a.make ?? "—"}
+                      </td>
+                      <td className="p-4 align-top text-slate-600">
+                        {a.model ?? "—"}
+                      </td>
+                      <td className="p-4 align-top text-slate-600">
+                        {a.category ?? "—"}
+                      </td>
+                      <td className="p-4 align-top text-slate-600">
+                        {a.location ?? "—"}
                       </td>
                       <td className="p-4 align-top">
                         <Badge colorClass={statusColors[a.status] || ""}>
@@ -401,9 +442,6 @@ export default function AssetsPage() {
                       </td>
                       <td className="p-4 align-top text-slate-600">
                         {formatDate(a.nextMaintenanceDate)}
-                      </td>
-                      <td className="p-4 align-top text-slate-600">
-                        {nextDueDays(a.nextMaintenanceDate)}
                       </td>
                       <td className="p-4 align-top text-slate-600">
                         {counts.total}

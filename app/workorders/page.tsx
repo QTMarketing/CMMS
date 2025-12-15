@@ -37,6 +37,7 @@ const statusOptions = [
   "All",
   "Open",
   "In Progress",
+  "Pending Review",
   "Completed",
   "Cancelled",
 ] as const;
@@ -51,6 +52,7 @@ const priorityColors: Record<string, string> = {
 const statusColors: Record<string, string> = {
   Open: "bg-yellow-100 text-yellow-800",
   "In Progress": "bg-blue-100 text-blue-800",
+  "Pending Review": "bg-purple-100 text-purple-800",
   Completed: "bg-green-100 text-green-800",
   Cancelled: "bg-gray-100 text-gray-700",
 };

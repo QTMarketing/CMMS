@@ -84,7 +84,7 @@ export default function AddInventoryDrawer() {
   }
 
   function validate(): string | null {
-    if (!canCreate) return "You are not allowed to create inventory items.";
+    if (!canCreate) return "You are not allowed to create parts.";
     if (!name.trim()) return "Name is required.";
 
     const qtyNum = Number(quantityOnHand);
@@ -134,8 +134,8 @@ export default function AddInventoryDrawer() {
         const message =
           data?.error ||
           (res.status === 403
-            ? "You are not authorized to create inventory items."
-            : "Failed to create inventory item.");
+            ? "You are not authorized to create parts."
+            : "Failed to create part.");
         setError(message);
         return;
       }
@@ -146,7 +146,7 @@ export default function AddInventoryDrawer() {
         router.refresh();
       });
     } catch {
-      setError("Unexpected error while creating inventory item.");
+      setError("Unexpected error while creating part.");
     } finally {
       setLoading(false);
     }
@@ -163,7 +163,7 @@ export default function AddInventoryDrawer() {
         onClick={() => setOpen(true)}
         className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
       >
-        Add Inventory Item
+        Add Part
       </button>
 
       <Drawer open={open} onClose={() => setOpen(false)}>
@@ -173,7 +173,7 @@ export default function AddInventoryDrawer() {
         >
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
-              Add Inventory Item
+              Add Part
             </h2>
             <p className="mt-1 text-xs text-gray-500">
               Track spare parts and consumables for your store.

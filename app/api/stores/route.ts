@@ -6,38 +6,46 @@ import { authOptions } from "@/lib/auth";
 import { isMasterAdmin, isAdminLike } from "@/lib/roles";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!session || !isAdminLike((session.user as any)?.role)) {
-    return NextResponse.json(
-      { success: false, error: "Forbidden" },
-      { status: 403 }
-    );
-  }
-
-  const role = (session.user as any)?.role as string | undefined;
-  const userStoreId = ((session.user as any)?.storeId ?? null) as
-    | string
-    | null;
-
-  // MASTER_ADMIN sees all stores, STORE_ADMIN sees only their store
-  if (isMasterAdmin(role)) {
-    const stores = await prisma.store.findMany({
-      orderBy: { createdAt: "desc" },
-    });
-    return NextResponse.json({ success: true, data: stores });
-  } else {
-    // STORE_ADMIN: return only their store
-    if (!userStoreId) {
-      return NextResponse.json({ success: true, data: [] });
+    if (!session || !isAdminLike((session.user as any)?.role)) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 }
+      );
     }
-    const store = await prisma.store.findUnique({
-      where: { id: userStoreId },
-    });
-    return NextResponse.json({
-      success: true,
-      data: store ? [store] : [],
-    });
+
+    const role = (session.user as any)?.role as string | undefined;
+    const userStoreId = ((session.user as any)?.storeId ?? null) as
+      | string
+      | null;
+
+    // MASTER_ADMIN sees all stores, STORE_ADMIN sees only their store
+    if (isMasterAdmin(role)) {
+      const stores = await prisma.store.findMany({
+        orderBy: { name: "asc" },
+      });
+      return NextResponse.json({ success: true, data: stores });
+    } else {
+      // STORE_ADMIN: return only their store
+      if (!userStoreId) {
+        return NextResponse.json({ success: true, data: [] });
+      }
+      const store = await prisma.store.findUnique({
+        where: { id: userStoreId },
+      });
+      return NextResponse.json({
+        success: true,
+        data: store ? [store] : [],
+      });
+    }
+  } catch (error) {
+    console.error("Error fetching stores:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to fetch stores" },
+      { status: 500 }
+    );
   }
 }
 

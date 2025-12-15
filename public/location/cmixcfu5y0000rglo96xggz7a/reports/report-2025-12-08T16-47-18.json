@@ -1,0 +1,29 @@
+{
+  "store": {
+    "id": "cmixcfu5y0000rglo96xggz7a",
+    "name": "lama 101",
+    "code": "wvj"
+  },
+  "period": {
+    "start": "2025-11-08",
+    "end": "2025-12-08"
+  },
+  "summary": {
+    "totalWorkOrders": 0,
+    "openWorkOrders": 0,
+    "inProgressWorkOrders": 0,
+    "completedWorkOrders": 0,
+    "cancelledWorkOrders": 0,
+    "totalAssets": 0,
+    "activeAssets": 0,
+    "totalPMSchedules": 0,
+    "activePMSchedules": 0,
+    "totalTechnicians": 0,
+    "activeTechnicians": 0
+  },
+  "workOrders": [],
+  "assets": [],
+  "pmSchedules": [],
+  "technicians": [],
+  "generatedAt": "2025-12-08T16:47:18.317Z"
+}

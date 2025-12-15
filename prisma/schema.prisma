@@ -9,11 +9,31 @@ generator client {
 
 model Asset {
   id                  String    @id
+  assetId             Int?      @unique // Numeric Asset ID
   name                String
   location            String
   status              String // "Active" | "Down" | "Retired"
   lastMaintenanceDate DateTime?
   nextMaintenanceDate DateTime?
+  
+  // New categorization fields
+  make                String?
+  model               String?
+  category            String?
+  
+  // Parent Asset relationship (for hierarchical assets)
+  parentAssetId       String?
+  parentAsset         Asset?   @relation("AssetHierarchy", fields: [parentAssetId], references: [id])
+  childAssets         Asset[]   @relation("AssetHierarchy")
+  parentAssetIdNumber Int?      // Numeric parent asset ID for filtering/sorting
+  parentAssetName     String?   // Parent asset name for easy filtering/sorting
+  
+  // Tool Check-Out fields
+  toolCheckOut        Int?      @default(0) // Number of tools checked out
+  checkOutRequiresApproval Int? @default(0) // 0 = No approval, 1 = Requires approval
+  
+  // Default Work Order Template
+  defaultWOTemplate   Int?      // Template ID for default work orders
 
   // Multi-store: optional owning store for this asset.
   storeId String?
@@ -22,6 +42,7 @@ model Asset {
   workOrders WorkOrder[]
   schedules  PreventiveSchedule[]
   requests   Request[]
+  transfers  Transfer[]
 }
 
 model Technician {
@@ -49,12 +70,14 @@ model WorkOrder {
   problemDescription String? // "Where or What is the problem?"
   helpDescription String?   // "How can we help?"
   attachments  String[]     @default([]) // Array of file URLs (images/videos)
+  invoices     String[]     @default([]) // Array of file URLs (PDF, JPEG, Excel invoices)
   priority     String       // "Low" | "Medium" | "High"
   status       String       // "Open" | "In Progress" | "Completed" | "Cancelled"
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   dueDate      DateTime?
   completedAt  DateTime?
+  shareToken   String?      @unique // Token for external sharing
 
   // Multi-store: optional store that owns this work order.
   storeId String?
@@ -71,6 +94,7 @@ model WorkOrder {
   createdBy   User?   @relation("WorkOrderCreator", fields: [createdById], references: [id])
 
   notes Note[]
+  transfers Transfer[]
 }
 
 model Note {
@@ -93,6 +117,7 @@ model InventoryItem {
   // Multi-store: optional store that owns this inventory item.
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
+  transfers Transfer[]
 }
 
 model PreventiveSchedule {
@@ -125,6 +150,7 @@ model User {
   accounts     Account[]
   sessions     Session[]
   createdWorkOrders WorkOrder[] @relation("WorkOrderCreator")
+  transfers Transfer[]
 }
 
 model Request {
@@ -141,6 +167,27 @@ model Request {
   // Multi-store: optional store this request belongs to.
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
+}
+
+model Transfer {
+  id              String   @id @default(cuid())
+  type            String   // "ASSET" | "INVENTORY"
+  assetId         String?  // If type is ASSET
+  inventoryItemId String?  // If type is INVENTORY
+  quantity        Int?     @default(1) // For inventory transfers
+  fromStoreId     String
+  fromStore       Store    @relation("TransferFromStore", fields: [fromStoreId], references: [id])
+  toStoreId       String
+  toStore         Store    @relation("TransferToStore", fields: [toStoreId], references: [id])
+  workOrderId     String?  // Optional: link to work order if transfer is related to a work order
+  workOrder       WorkOrder? @relation(fields: [workOrderId], references: [id])
+  transferredById String?  // User who initiated the transfer
+  transferredBy   User?    @relation(fields: [transferredById], references: [id])
+  notes           String?  // Reason or notes for the transfer
+  createdAt       DateTime @default(now())
+
+  asset         Asset?         @relation(fields: [assetId], references: [id])
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
 }
 
 // Multi-store / multi-tenant support. For now, storeId fields are optional on
@@ -162,6 +209,8 @@ model Store {
   requests       Request[]
   pmSchedules    PreventiveSchedule[]
   inventoryItems InventoryItem[]
+  transfersFrom  Transfer[] @relation("TransferFromStore")
+  transfersTo    Transfer[] @relation("TransferToStore")
 }
 
 // Auth.js / NextAuth supporting models

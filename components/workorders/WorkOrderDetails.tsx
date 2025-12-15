@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { Share2, Copy, Check, X, ArrowRightLeft } from "lucide-react";
 import { WorkOrderStatusControls } from "./WorkOrderStatusControls";
 import { WorkOrderAssigneeControl } from "./WorkOrderAssigneeControl";
 import { WorkOrderDescriptionEditor } from "./WorkOrderDescriptionEditor";
+import TransferDrawer from "@/components/transfers/TransferDrawer";
 
 export default function WorkOrderDetails({
   workOrder: initialWorkOrder,
@@ -33,8 +35,104 @@ export default function WorkOrderDetails({
   const [commentError, setCommentError] = useState<string | null>(null);
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [uploadingInvoices, setUploadingInvoices] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [markingComplete, setMarkingComplete] = useState(false);
   const [markCompleteError, setMarkCompleteError] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [generatingShare, setGeneratingShare] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [revokingShare, setRevokingShare] = useState(false);
+  const [showTransferDrawer, setShowTransferDrawer] = useState(false);
+  const [transferType, setTransferType] = useState<"ASSET" | "INVENTORY">("ASSET");
+
+  // Load existing share URL on mount if admin
+  useEffect(() => {
+    if (canEdit && workOrder.id) {
+      fetch(`/api/workorders/${workOrder.id}/share`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data?.shareUrl) {
+            setShareUrl(data.data.shareUrl);
+          }
+        })
+        .catch(() => {
+          // Ignore errors
+        });
+    }
+  }, [canEdit, workOrder.id]);
+
+  async function handleGenerateShare() {
+    setGeneratingShare(true);
+    setShareError(null);
+
+    try {
+      const res = await fetch(`/api/workorders/${workOrder.id}/share`, {
+        method: "POST",
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("Share API error:", data);
+        throw new Error(data.error || `Failed to generate share link (${res.status})`);
+      }
+
+      if (!data.success) {
+        console.error("Share API returned unsuccessful:", data);
+        throw new Error(data.error || "Failed to generate share link");
+      }
+
+      if (!data.data?.shareUrl) {
+        console.error("Share API missing shareUrl:", data);
+        throw new Error("Invalid response from server");
+      }
+
+      setShareUrl(data.data.shareUrl);
+      await refreshWorkOrder();
+    } catch (err: any) {
+      console.error("Error in handleGenerateShare:", err);
+      setShareError(err.message || "Failed to generate share link");
+    } finally {
+      setGeneratingShare(false);
+    }
+  }
+
+  async function handleRevokeShare() {
+    setRevokingShare(true);
+    setShareError(null);
+
+    try {
+      const res = await fetch(`/api/workorders/${workOrder.id}/share`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to revoke share link");
+      }
+
+      setShareUrl(null);
+      await refreshWorkOrder();
+    } catch (err: any) {
+      setShareError(err.message || "Failed to revoke share link");
+    } finally {
+      setRevokingShare(false);
+    }
+  }
+
+  async function handleCopyShareLink() {
+    if (!shareUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      setShareError("Failed to copy link to clipboard");
+    }
+  }
+
   async function refreshWorkOrder() {
     try {
       // Fetch all work orders and find the one we need (since there's no single work order GET endpoint)
@@ -215,6 +313,80 @@ export default function WorkOrderDetails({
     }
   }
 
+  async function handleInvoiceUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingInvoices(true);
+    setInvoiceError(null);
+
+    try {
+      // Validate file types
+      const allowedTypes = [
+        "application/pdf",
+        "image/jpeg",
+        "image/jpg",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      ];
+      const allowedExtensions = [".pdf", ".jpeg", ".jpg", ".xls", ".xlsx"];
+
+      const invalidFiles = Array.from(files).filter((file) => {
+        const isValidType = allowedTypes.includes(file.type);
+        const isValidExtension = allowedExtensions.some((ext) =>
+          file.name.toLowerCase().endsWith(ext)
+        );
+        return !isValidType && !isValidExtension;
+      });
+
+      if (invalidFiles.length > 0) {
+        throw new Error(
+          "Invalid file type. Only PDF, JPEG, and Excel files are allowed."
+        );
+      }
+
+      const uploadPromises = Array.from(files).map((file) =>
+        handleFileUpload(file)
+      );
+      const urls = await Promise.all(uploadPromises);
+      
+      // Update work order with new invoices
+      const currentInvoices = Array.isArray(workOrder.invoices) 
+        ? workOrder.invoices 
+        : [];
+      const newInvoices = [...currentInvoices, ...urls];
+
+      // Update via API
+      const res = await fetch(`/api/workorders/${workOrder.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoices: newInvoices,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Failed to update invoices");
+      }
+
+      // Update work order with the response data
+      const updatedWorkOrder = data.data || data;
+      if (updatedWorkOrder && updatedWorkOrder.id) {
+        setWorkOrder(updatedWorkOrder);
+      } else {
+        // Fallback: refresh from API
+        await refreshWorkOrder();
+      }
+    } catch (err: any) {
+      setInvoiceError(err.message || "Failed to upload invoices");
+    } finally {
+      setUploadingInvoices(false);
+      // Reset input
+      e.target.value = "";
+    }
+  }
+
   // Unified activity timeline: created, last updated, completed, and notes
   type ActivityItem =
     | { type: "created"; timestamp: Date }
@@ -275,6 +447,11 @@ export default function WorkOrderDetails({
   const attachments: any[] = Array.isArray((workOrder as any).attachments)
     ? (workOrder as any).attachments
     : [];
+  
+  // Try to read invoices if present on the workOrder object
+  const invoices: any[] = Array.isArray((workOrder as any).invoices)
+    ? (workOrder as any).invoices
+    : [];
 
   return (
     <div className="space-y-4 text-sm">
@@ -297,6 +474,57 @@ export default function WorkOrderDetails({
               <span className="text-base leading-none">✎</span>
               <span>Edit Work Order</span>
             </Link>
+            
+            {/* Share Button */}
+            <div className="relative">
+              {shareUrl ? (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5">
+                    <input
+                      type="text"
+                      value={shareUrl}
+                      readOnly
+                      className="text-xs text-green-700 bg-transparent border-none outline-none w-64"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <button
+                      onClick={handleCopyShareLink}
+                      className="text-green-700 hover:text-green-800"
+                      title="Copy link"
+                    >
+                      {copied ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </button>
+                    <button
+                      onClick={handleRevokeShare}
+                      disabled={revokingShare}
+                      className="text-red-600 hover:text-red-700 disabled:opacity-60"
+                      title="Revoke share link"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={handleGenerateShare}
+                  disabled={generatingShare}
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <Share2 className="h-3 w-3" />
+                  <span>{generatingShare ? "Generating..." : "Share"}</span>
+                </button>
+              )}
+              {shareError && (
+                <div className="absolute top-full left-0 mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 shadow-lg z-10 max-w-xs">
+                  <p className="font-semibold mb-1">Error sharing work order:</p>
+                  <p>{shareError}</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -597,9 +825,27 @@ export default function WorkOrderDetails({
                 <label className="text-xs font-medium text-slate-500">
             Asset
                 </label>
-                <p className="mt-1 text-sm font-medium text-indigo-600 hover:underline">
-                  {asset.name}
-                </p>
+                <div className="mt-1 flex items-center gap-2">
+                  <Link
+                    href={`/assets/${asset.id}`}
+                    className="text-sm font-medium text-indigo-600 hover:underline"
+                  >
+                    {asset.name}
+                  </Link>
+                  {canEdit && (
+                    <button
+                      onClick={() => {
+                        setTransferType("ASSET");
+                        setShowTransferDrawer(true);
+                      }}
+                      className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 border border-gray-300"
+                      title="Transfer asset to another store"
+                    >
+                      <ArrowRightLeft className="h-3 w-3" />
+                      Transfer
+                    </button>
+                  )}
+                </div>
           </div>
             )}
 
@@ -695,8 +941,114 @@ export default function WorkOrderDetails({
               )}
             </div>
           </section>
+
+          {/* Invoices card (admin only) */}
+          {canEdit && (
+            <section className="overflow-hidden rounded-lg bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <h3 className="text-base font-semibold text-slate-900">
+                  Invoices
+                </h3>
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".pdf,.jpeg,.jpg,.xls,.xlsx,application/pdf,image/jpeg,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    multiple
+                    onChange={handleInvoiceUpload}
+                    disabled={uploadingInvoices}
+                    className="hidden"
+                  />
+                  <span className="text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                    {uploadingInvoices ? "Uploading..." : "Upload"}
+                  </span>
+                </label>
+              </div>
+              <div className="space-y-3 px-4 py-4">
+                {invoiceError && (
+                  <p className="text-xs text-red-500">{invoiceError}</p>
+                )}
+                {invoices.length === 0 ? (
+                  <p className="text-xs text-slate-400">
+                    No invoices have been added to this work order yet.
+                  </p>
+                ) : (
+                  invoices.map((url, idx) => {
+                    const isImage = /\.(jpg|jpeg)$/i.test(url);
+                    const isPdf = /\.pdf$/i.test(url);
+                    const isExcel = /\.(xls|xlsx)$/i.test(url);
+                    const filename = url.split("/").pop() || "Invoice";
+
+                    return (
+                      <div
+                        key={idx}
+                        className="rounded-lg bg-slate-50 overflow-hidden border border-slate-200"
+                      >
+                        {isImage ? (
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block"
+                          >
+                            <img
+                              src={url}
+                              alt={filename}
+                              className="w-full h-auto max-h-64 object-contain bg-white"
+                            />
+                          </a>
+                        ) : (
+                          <div className="flex items-center gap-3 px-3 py-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded bg-slate-100 text-lg">
+                              {isPdf ? "📄" : isExcel ? "📊" : "📎"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-slate-900 truncate">
+                                {filename}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {isPdf
+                                  ? "PDF Document"
+                                  : isExcel
+                                  ? "Excel Spreadsheet"
+                                  : "Invoice File"}
+                              </p>
+                            </div>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-full p-2 hover:bg-slate-200 text-slate-600"
+                              title="Download invoice"
+                            >
+                              <span className="text-sm">↓</span>
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          )}
         </div>
       </div>
+
+      {/* Transfer Drawer */}
+      {canEdit && (
+        <TransferDrawer
+          open={showTransferDrawer}
+          onClose={() => setShowTransferDrawer(false)}
+          type={transferType}
+          assetId={transferType === "ASSET" ? asset?.id : undefined}
+          inventoryItemId={undefined}
+          workOrderId={workOrder.id}
+          fromStoreId={workOrder.storeId || asset?.storeId}
+          onSuccess={() => {
+            refreshWorkOrder();
+          }}
+        />
+      )}
     </div>
   );
 }

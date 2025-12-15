@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type WorkOrderStatus = "Open" | "In Progress" | "Completed" | "Cancelled";
+type WorkOrderStatus = "Open" | "In Progress" | "Pending Review" | "Completed" | "Cancelled";
 type WorkOrderPriority = "Low" | "Medium" | "High";
 
 interface Technician {
@@ -21,7 +21,7 @@ interface Note {
 interface WorkOrder {
   id: string;
   title: string;
-  status: "Open" | "In Progress" | "Completed" | "Cancelled";
+  status: "Open" | "In Progress" | "Pending Review" | "Completed" | "Cancelled";
   priority: "Low" | "Medium" | "High";
   description?: string | null;
   dueDate?: string | null;
@@ -191,9 +191,15 @@ export default function EditWorkOrderForm({ workOrder }: Props) {
             >
               <option value="Open">Open</option>
               <option value="In Progress">In Progress</option>
+              <option value="Pending Review">Pending Review</option>
               <option value="Completed">Completed</option>
               <option value="Cancelled">Cancelled</option>
             </select>
+            {status === "Pending Review" && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ This work order is awaiting admin review and approval.
+              </p>
+            )}
           </div>
 
           {/* Priority */}

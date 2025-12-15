@@ -3,7 +3,7 @@ export type WorkOrder = {
   title: string;
   description?: string;
   priority: "Low" | "Medium" | "High";
-  status: "Open" | "In Progress" | "Completed" | "Cancelled";
+  status: "Open" | "In Progress" | "Pending Review" | "Completed" | "Cancelled";
   createdAt: Date;
   dueDate?: Date;
   completedAt?: Date | null;

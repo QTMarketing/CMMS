@@ -8,36 +8,44 @@ import { isAdminLike, isMasterAdmin, isTechnician } from "@/lib/roles";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  try {
+    const session = await getServerSession(authOptions);
 
-  if (!session) {
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const role = (session.user as any)?.role as string | undefined;
+    const userStoreId = ((session.user as any)?.storeId ?? null) as
+      | string
+      | null;
+
+    const where: any = {};
+
+    if (!canSeeAllStores(role)) {
+      const scopedStoreId = getScopedStoreId(role, userStoreId);
+      if (scopedStoreId) {
+        where.storeId = scopedStoreId;
+      } else {
+        where.storeId = "__never_match__";
+      }
+    }
+
+    const items = await prisma.technician.findMany({
+      where,
+      orderBy: { name: "asc" },
+    });
+    return NextResponse.json(items);
+  } catch (error) {
+    console.error("Error fetching technicians:", error);
     return NextResponse.json(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
+      { success: false, error: "Failed to fetch technicians" },
+      { status: 500 }
     );
   }
-
-  const role = (session.user as any)?.role as string | undefined;
-  const userStoreId = ((session.user as any)?.storeId ?? null) as
-    | string
-    | null;
-
-  const where: any = {};
-
-  if (!canSeeAllStores(role)) {
-    const scopedStoreId = getScopedStoreId(role, userStoreId);
-    if (scopedStoreId) {
-      where.storeId = scopedStoreId;
-    } else {
-      where.storeId = "__never_match__";
-    }
-  }
-
-  const items = await prisma.technician.findMany({
-    where,
-    orderBy: { name: "asc" },
-  });
-  return NextResponse.json(items);
 }
 
 export async function POST(request: Request) {

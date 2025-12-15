@@ -6,20 +6,31 @@ import { existsSync } from "fs";
 
 import { authOptions } from "@/lib/auth";
 import { getScopedStoreId } from "@/lib/storeAccess";
+import { verifyMobileToken } from "@/lib/mobileAuth";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    // Try NextAuth session first (for web)
+    let session = await getServerSession(authOptions);
+    let role: string | undefined;
+    let userStoreId: string | null = null;
 
+    // If no session, try mobile token
     if (!session) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      const mobileUser = verifyMobileToken(req);
+      if (mobileUser) {
+        role = mobileUser.role;
+        userStoreId = mobileUser.storeId || null;
+      } else {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized" },
+          { status: 401 }
+        );
+      }
+    } else {
+      role = (session.user as any)?.role as string | undefined;
+      userStoreId = ((session.user as any)?.storeId ?? null) as string | null;
     }
-
-    const role = (session.user as any)?.role as string | undefined;
-    const userStoreId = ((session.user as any)?.storeId ?? null) as string | null;
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;

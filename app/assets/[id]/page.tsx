@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike } from "@/lib/roles";
+import TransferHistory from "@/components/transfers/TransferHistory";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -76,6 +77,15 @@ export default async function AssetHistoryPage({ params }: PageProps) {
 
   const asset = await prisma.asset.findUnique({
     where: { id },
+    include: {
+      store: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
+    },
   });
 
   if (!asset) {
@@ -216,6 +226,15 @@ export default async function AssetHistoryPage({ params }: PageProps) {
             </div>
           )}
         </div>
+      )}
+
+      {/* Transfer History */}
+      {isAdmin && (
+        <TransferHistory
+          assetId={asset.id}
+          storeId={asset.storeId}
+          canTransfer={isAdmin}
+        />
       )}
 
       {/* Work Order History */}

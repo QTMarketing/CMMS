@@ -6,13 +6,18 @@ import { authOptions } from "@/lib/auth";
 import { isAdminLike, isTechnician as isTechnicianRole } from "@/lib/roles";
 import { sendWorkOrderAssignedEmail, sendWorkOrderUpdateEmail } from "@/lib/email";
 
-const VALID_STATUSES = ["Open", "In Progress", "Completed", "Cancelled"] as const;
+const VALID_STATUSES = ["Open", "In Progress", "Pending Review", "Completed", "Cancelled"] as const;
 type Status = (typeof VALID_STATUSES)[number];
 
+// Status transitions:
+// - Technicians can only go: In Progress -> Pending Review
+// - Admins can go: Pending Review -> Completed (approve) or Pending Review -> In Progress (reject/needs changes)
+// - Admins can also do all other transitions
 const VALID_TRANSITIONS: Record<Status, Status[]> = {
   Open: ["In Progress", "Completed", "Cancelled"],
-  "In Progress": ["Open", "Completed", "Cancelled"],
-  Completed: ["Open", "In Progress"],
+  "In Progress": ["Open", "Pending Review", "Completed", "Cancelled"],
+  "Pending Review": ["In Progress", "Completed", "Cancelled"], // Only admins can transition from here
+  Completed: ["Open", "In Progress", "Pending Review"],
   Cancelled: ["Open"],
 };
 
@@ -79,7 +84,7 @@ export async function PATCH(
     );
   }
 
-  // 3. Enforce valid transitions
+  // 3. Enforce valid transitions and role-based restrictions
   const allowedNext = VALID_TRANSITIONS[currentStatus] ?? [];
   if (nextStatus !== currentStatus && !allowedNext.includes(nextStatus)) {
     return NextResponse.json(
@@ -88,19 +93,50 @@ export async function PATCH(
     );
   }
 
-  // 4. Compute completedAt based on status transition
+  // 4. Enforce role-based restrictions:
+  // - Technicians can only submit for review (In Progress -> Pending Review)
+  // - Technicians CANNOT directly complete work orders
+  // - Only admins can approve/reject pending reviews
+  if (!isAdmin) {
+    // Technician restrictions
+    if (nextStatus === "Completed" && currentStatus !== "Completed") {
+      return NextResponse.json(
+        { error: "Technicians cannot mark work orders as completed. Please submit for review instead." },
+        { status: 403 }
+      );
+    }
+    if (currentStatus === "Pending Review" && nextStatus !== currentStatus) {
+      return NextResponse.json(
+        { error: "Only administrators can review and approve/reject pending work orders." },
+        { status: 403 }
+      );
+    }
+    // Technicians can only go from "In Progress" to "Pending Review"
+    if (currentStatus === "In Progress" && nextStatus === "Pending Review") {
+      // This is allowed - technician submitting for review
+    } else if (currentStatus !== "In Progress" && nextStatus === "Pending Review") {
+      return NextResponse.json(
+        { error: "Work orders can only be submitted for review when status is 'In Progress'." },
+        { status: 400 }
+      );
+    }
+  }
+
+  // 5. Compute completedAt based on status transition
+  // Only set completedAt when admin approves (Pending Review -> Completed)
   let completedAt = existing.completedAt;
 
   const wasCompleted = currentStatus === "Completed";
   const willBeCompleted = nextStatus === "Completed";
 
   if (!wasCompleted && willBeCompleted) {
-    // Moving INTO Completed
+    // Moving INTO Completed (admin approval)
     completedAt = new Date();
   } else if (wasCompleted && !willBeCompleted) {
     // Moving OUT OF Completed (re-open / change)
     completedAt = null;
   }
+  // Note: Pending Review status does NOT set completedAt - only Completed does
 
   // 5. Build update data for other fields
   const data: any = {
@@ -111,6 +147,13 @@ export async function PATCH(
   if (Object.prototype.hasOwnProperty.call(body, "attachments")) {
     if (Array.isArray(body.attachments)) {
       data.attachments = body.attachments;
+    }
+  }
+
+  // Only admins can add invoices
+  if (isAdmin && Object.prototype.hasOwnProperty.call(body, "invoices")) {
+    if (Array.isArray(body.invoices)) {
+      data.invoices = body.invoices;
     }
   }
 

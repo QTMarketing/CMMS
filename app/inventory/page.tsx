@@ -7,13 +7,14 @@ import Badge from "../../components/ui/Badge";
 import Table from "../../components/ui/Table";
 import AddInventoryDrawer from "./components/AddInventoryDrawer";
 import StoreFilter from "@/components/StoreFilter";
+import BulkImportDrawer from "@/components/BulkImportDrawer";
 import { isAdminLike } from "@/lib/roles";
 
-export default function InventoryPage() {
+export default function PartsPage() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
-  const [inventory, setInventory] = useState([]);
+  const [parts, setParts] = useState([]);
   const [stores, setStores] = useState<any[]>([]);
   const searchParams = useSearchParams();
   const selectedStoreId = searchParams.get("storeId") || "";
@@ -56,7 +57,7 @@ export default function InventoryPage() {
         }
       })
       .then((data) =>
-        setInventory(Array.isArray(data) ? data : data.data || [])
+        setParts(Array.isArray(data) ? data : data.data || [])
       );
 
     fetch("/api/stores", { cache: "no-store" })
@@ -68,7 +69,7 @@ export default function InventoryPage() {
   }, [selectedStoreId]);
 
   // Sort by name ASC
-  const rows = inventory
+  const rows = parts
     .map((item) => ({
       ...item,
       lowStock: item.quantityOnHand <= item.reorderThreshold,
@@ -102,7 +103,10 @@ export default function InventoryPage() {
               label="Store"
             />
           )}
+          <div className="flex items-center gap-2">
+            <BulkImportDrawer type="inventory" />
           <AddInventoryDrawer />
+          </div>
         </div>
       </div>
       {/* Table */}
@@ -121,7 +125,7 @@ export default function InventoryPage() {
         {filtered.length === 0 ? (
           <tr>
             <td colSpan={8} className="py-6 text-center text-gray-400">
-              No inventory items found.
+              No parts found.
             </td>
           </tr>
         ) : (
@@ -148,7 +152,7 @@ export default function InventoryPage() {
                     onClick={async (e) => {
                       e.stopPropagation();
                       const confirmed = window.confirm(
-                        "Delete this inventory item? This cannot be undone."
+                        "Delete this part? This cannot be undone."
                       );
                       if (!confirmed) return;
 
@@ -163,7 +167,7 @@ export default function InventoryPage() {
                             .json()
                             .catch(() => ({}));
                           window.alert(
-                            `Failed to delete inventory item: ${
+                            `Failed to delete part: ${
                               data.error ?? "Unknown error"
                             }`
                           );
@@ -172,12 +176,12 @@ export default function InventoryPage() {
 
                         router.refresh();
                       } catch (err) {
-                        console.error("Failed to delete inventory item", err);
-                        window.alert("Failed to delete inventory item.");
+                        console.error("Failed to delete part", err);
+                        window.alert("Failed to delete part.");
                       }
                     }}
                     className="text-slate-400 hover:text-red-500"
-                    aria-label="Delete inventory item"
+                    aria-label="Delete part"
                   >
                     🗑
                   </button>
