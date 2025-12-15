@@ -3,12 +3,6 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  Boxes,
-  Clock,
-  CheckCircle2,
-  CalendarRange,
-} from "lucide-react";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import TechnicianDashboard from "../components/dashboard/TechnicianDashboard";
 
@@ -396,7 +390,7 @@ export default async function DashboardPage() {
       <div className="bg-white rounded-full shadow-sm flex flex-col items-stretch gap-4 p-4 md:flex-row md:items-center md:justify-around">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-            <Boxes className="h-4 w-4" />
+            <span className="text-xs font-semibold">A</span>
           </span>
           <span className="text-lg font-bold">{assets.length}</span>
           <span className="text-sm text-slate-500">Total Assets</span>
@@ -406,7 +400,7 @@ export default async function DashboardPage() {
 
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-50 text-amber-600">
-            <Clock className="h-4 w-4" />
+            <span className="text-xs font-semibold">P</span>
           </span>
           <span className="text-lg font-bold">
             {kpiOpen + kpiInProgress}
@@ -418,7 +412,7 @@ export default async function DashboardPage() {
 
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-            <CheckCircle2 className="h-4 w-4" />
+            <span className="text-xs font-semibold">C</span>
           </span>
           <span className="text-lg font-bold">{kpiCompleted}</span>
           <span className="text-sm text-slate-500">
@@ -430,7 +424,7 @@ export default async function DashboardPage() {
 
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-600">
-            <CalendarRange className="h-4 w-4" />
+            <span className="text-xs font-semibold">S</span>
           </span>
           <span className="text-lg font-bold">
             {scheduledMaintenanceCount}

@@ -3,39 +3,23 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
-import {
-  LayoutDashboard,
-  Package,
-  ClipboardList,
-  Calendar,
-  BarChart3,
-  Settings,
-  HelpCircle,
-  Users,
-  Warehouse,
-  Wrench,
-  Store,
-  FileText,
-  LogOut,
-  User,
-} from "lucide-react";
 import TechnicianStatusToggle from "@/components/technicians/TechnicianStatusToggle";
 
 const allNavItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Work Orders", href: "/workorders", icon: ClipboardList },
-  { name: "Preventive Maintenance Schedules", href: "/pm", icon: Calendar },
-  { name: "Technicians", href: "/technicians", icon: Wrench },
-  { name: "Requests", href: "/requests", icon: FileText },
-  { name: "Stores", href: "/stores", icon: Store },
-  { name: "Users", href: "/users", icon: Users },
-  { name: "Reports", href: "/reports", icon: BarChart3 },
+  { name: "Dashboard", href: "/" },
+  { name: "Work Orders", href: "/workorders" },
+  { name: "Preventive Maintenance Schedules", href: "/pm" },
+  { name: "Technicians", href: "/technicians" },
+  { name: "Requests", href: "/requests" },
+  { name: "Stores", href: "/stores" },
+  { name: "Users", href: "/users" },
+  { name: "Reports", href: "/reports" },
 ];
 
 // Store sub-items (Assets and Parts)
 const storeSubItems = [
-  { name: "Assets", href: "/assets", icon: Package },
-  { name: "Parts", href: "/inventory", icon: Warehouse },
+  { name: "Assets", href: "/assets" },
+  { name: "Parts", href: "/inventory" },
 ];
 
 export default function Sidebar({
@@ -184,7 +168,6 @@ export default function Sidebar({
         <nav className="flex-1 space-y-2 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
-            const Icon = item.icon;
             const isStores = item.href === "/stores";
             // Only highlight Stores if we're on Stores, Assets, or Parts pages
             const isStoresPageActive = isStores && (pathname === "/stores" || pathname === "/assets" || pathname === "/inventory");
@@ -202,7 +185,6 @@ export default function Sidebar({
                   }`}
                   onClick={() => isMobile && onClose && onClose()}
                 >
-                  <Icon className="h-5 w-5" />
                   <span>{item.name}</span>
                 </Link>
                 {/* Show Assets and Parts nested under Stores */}
@@ -210,7 +192,6 @@ export default function Sidebar({
                   <div className="ml-4 mt-1 space-y-1">
                     {storeSubItems.map((subItem) => {
                       const isSubActive = pathname === subItem.href;
-                      const SubIcon = subItem.icon;
                       return (
                         <Link
                           key={subItem.name}
@@ -222,7 +203,6 @@ export default function Sidebar({
                           }`}
                           onClick={() => isMobile && onClose && onClose()}
                         >
-                          <SubIcon className="h-4 w-4" />
                           <span>{subItem.name}</span>
                         </Link>
                       );
@@ -267,7 +247,6 @@ export default function Sidebar({
             className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
             onClick={() => isMobile && onClose && onClose()}
           >
-            <Settings className="h-5 w-5" />
             <span>Settings</span>
           </Link>
           <Link
@@ -276,7 +255,6 @@ export default function Sidebar({
             onClick={() => isMobile && onClose && onClose()}
           >
             <div className="flex items-center gap-3">
-              <HelpCircle className="h-5 w-5" />
               <span>Help & Support</span>
             </div>
             <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full">
@@ -294,7 +272,6 @@ export default function Sidebar({
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               type="button"
           >
-            <LogOut className="h-5 w-5" />
             <span>Logout</span>
           </button>
           )}

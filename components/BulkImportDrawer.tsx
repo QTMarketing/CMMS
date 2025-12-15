@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Upload, X, CheckCircle, AlertCircle } from "lucide-react";
 
 import Drawer from "@/components/ui/Drawer";
 import { isAdminLike, isMasterAdmin, isStoreAdmin } from "@/lib/roles";
@@ -179,7 +178,9 @@ export default function BulkImportDrawer({ type, onSuccess }: BulkImportDrawerPr
         onClick={() => setOpen(true)}
         className="inline-flex items-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-700"
       >
-        <Upload className="mr-2 h-4 w-4" />
+        <span className="mr-2 h-4 w-4" aria-hidden="true">
+          ⬆
+        </span>
         Import {typeLabel} from Excel
       </button>
 
@@ -199,7 +200,9 @@ export default function BulkImportDrawer({ type, onSuccess }: BulkImportDrawerPr
 
           {error && (
             <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden="true">
+                ⚠
+              </span>
               <span>{error}</span>
             </div>
           )}
@@ -214,9 +217,13 @@ export default function BulkImportDrawer({ type, onSuccess }: BulkImportDrawerPr
             >
               <div className="flex items-start gap-2">
                 {uploadResult.failed === 0 ? (
-                  <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden="true">
+                    ✔
+                  </span>
                 ) : (
-                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden="true">
+                    ⚠
+                  </span>
                 )}
                 <div className="flex-1">
                   <p className="font-medium">
@@ -270,7 +277,9 @@ export default function BulkImportDrawer({ type, onSuccess }: BulkImportDrawerPr
                   className="hidden"
                 />
                 <div className="flex items-center gap-2 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                  <Upload className="h-4 w-4" />
+                  <span className="h-4 w-4" aria-hidden="true">
+                    ⬆
+                  </span>
                   <span className="flex-1 truncate">
                     {file ? file.name : "Choose file..."}
                   </span>
@@ -285,7 +294,9 @@ export default function BulkImportDrawer({ type, onSuccess }: BulkImportDrawerPr
                   }}
                   className="rounded p-1 text-gray-400 hover:text-gray-600"
                 >
-                  <X className="h-4 w-4" />
+                  <span className="h-4 w-4" aria-hidden="true">
+                    ✕
+                  </span>
                 </button>
               )}
             </div>

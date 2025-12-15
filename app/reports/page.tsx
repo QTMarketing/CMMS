@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Download, Calendar, Building2, FileText } from "lucide-react";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 
 interface Store {
@@ -254,7 +253,9 @@ export default function ReportsPage() {
             disabled={!selectedStoreId || generatingReport}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <FileText className="h-4 w-4" />
+            <span className="text-sm" aria-hidden="true">
+              📄
+            </span>
             {generatingReport ? "Generating..." : "Generate Report"}
           </button>
         </div>
@@ -299,7 +300,9 @@ export default function ReportsPage() {
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="p-4">
                           <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-slate-400" />
+                            <span className="text-sm text-slate-400" aria-hidden="true">
+                              📄
+                            </span>
                             <span className="font-medium text-slate-900">
                               {report.filename}
                             </span>
@@ -317,7 +320,9 @@ export default function ReportsPage() {
                             download
                             className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
                           >
-                            <Download className="h-3 w-3" />
+                            <span className="text-xs" aria-hidden="true">
+                              ⬇
+                            </span>
                             Download
                           </a>
                         </td>

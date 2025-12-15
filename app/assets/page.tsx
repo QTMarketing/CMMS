@@ -4,14 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  Search,
-  Filter,
-  Download,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
 import Badge from "../../components/ui/Badge";
 import DashboardHeader, {
   DashboardSearchItem,
@@ -259,7 +251,9 @@ export default function AssetsPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="relative w-full md:max-w-sm">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-              <Search className="h-4 w-4" />
+              <span className="text-sm" aria-hidden="true">
+                🔍
+              </span>
             </span>
             <input
               type="text"
@@ -274,13 +268,17 @@ export default function AssetsPage() {
               type="button"
               className="inline-flex items-center rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-800"
             >
-              <Filter className="h-5 w-5" />
+              <span className="text-sm" aria-hidden="true">
+                ⚙
+              </span>
             </button>
             <button
               type="button"
               className="inline-flex items-center rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-800"
             >
-              <Download className="h-5 w-5" />
+              <span className="text-sm" aria-hidden="true">
+                ⬇
+              </span>
             </button>
           </div>
         </div>
@@ -292,28 +290,36 @@ export default function AssetsPage() {
             className="inline-flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200"
           >
             <span>Type: All</span>
-            <ChevronDown className="h-3 w-3" />
+            <span className="text-xs" aria-hidden="true">
+              ▾
+            </span>
           </button>
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200"
           >
             <span>Location: All</span>
-            <ChevronDown className="h-3 w-3" />
+            <span className="text-xs" aria-hidden="true">
+              ▾
+            </span>
           </button>
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200"
           >
             <span>Status: All</span>
-            <ChevronDown className="h-3 w-3" />
+            <span className="text-xs" aria-hidden="true">
+              ▾
+            </span>
           </button>
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200"
           >
             <span>Last Maintenance</span>
-            <ChevronDown className="h-3 w-3" />
+            <span className="text-xs" aria-hidden="true">
+              ▾
+            </span>
           </button>
         </div>
       </section>
@@ -478,13 +484,17 @@ export default function AssetsPage() {
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <span className="text-sm" aria-hidden="true">
+                ‹
+              </span>
             </button>
             <button
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
             >
-              <ChevronRight className="h-4 w-4" />
+              <span className="text-sm" aria-hidden="true">
+                ›
+              </span>
             </button>
           </div>
         </div>

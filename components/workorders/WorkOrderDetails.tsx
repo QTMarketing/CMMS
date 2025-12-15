@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Share2, Copy, Check, X, ArrowRightLeft } from "lucide-react";
 import { WorkOrderStatusControls } from "./WorkOrderStatusControls";
 import { WorkOrderAssigneeControl } from "./WorkOrderAssigneeControl";
 import { WorkOrderDescriptionEditor } from "./WorkOrderDescriptionEditor";
@@ -492,11 +491,9 @@ export default function WorkOrderDetails({
                       className="text-green-700 hover:text-green-800"
                       title="Copy link"
                     >
-                      {copied ? (
-                        <Check className="h-3 w-3" />
-                      ) : (
-                        <Copy className="h-3 w-3" />
-                      )}
+                      <span className="text-xs" aria-hidden="true">
+                        {copied ? "✔" : "📋"}
+                      </span>
                     </button>
                     <button
                       onClick={handleRevokeShare}
@@ -504,7 +501,9 @@ export default function WorkOrderDetails({
                       className="text-red-600 hover:text-red-700 disabled:opacity-60"
                       title="Revoke share link"
                     >
-                      <X className="h-3 w-3" />
+                      <span className="text-xs" aria-hidden="true">
+                        ✕
+                      </span>
                     </button>
                   </div>
                 </div>
@@ -514,7 +513,9 @@ export default function WorkOrderDetails({
                   disabled={generatingShare}
                   className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  <Share2 className="h-3 w-3" />
+                  <span className="text-xs" aria-hidden="true">
+                    🔗
+                  </span>
                   <span>{generatingShare ? "Generating..." : "Share"}</span>
                 </button>
               )}
@@ -841,7 +842,9 @@ export default function WorkOrderDetails({
                       className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 border border-gray-300"
                       title="Transfer asset to another store"
                     >
-                      <ArrowRightLeft className="h-3 w-3" />
+                      <span className="text-xs" aria-hidden="true">
+                        ⇄
+                      </span>
                       Transfer
                     </button>
                   )}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowRightLeft } from "lucide-react";
 import TransferDrawer from "./TransferDrawer";
 
 interface Transfer {
@@ -97,7 +96,9 @@ export default function TransferHistory({
               onClick={() => setShowTransferDrawer(true)}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
             >
-              <ArrowRightLeft className="h-3 w-3" />
+              <span className="text-xs" aria-hidden="true">
+                ⇄
+              </span>
               Transfer
             </button>
           )}

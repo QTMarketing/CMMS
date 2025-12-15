@@ -13,16 +13,9 @@ import { WorkOrder } from "../../lib/data/workOrders";
 import EditWorkOrderButton from "./EditWorkOrderButton";
 import ViewWorkOrderButton from "./ViewWorkOrderButton";
 import DeleteWorkOrderButton from "./DeleteWorkOrderButton";
-import AdminOnly from "@/components/auth/AdminOnly";
 import DashboardHeader, {
   DashboardSearchItem,
 } from "@/components/dashboard/DashboardHeader";
-import {
-  Search,
-  Filter,
-  ChevronDown,
-  CalendarRange,
-} from "lucide-react";
 
 // --- Type definitions for API objects ---
 interface Technician {
@@ -395,7 +388,9 @@ export default function WorkOrdersPage() {
         {/* Search */}
         <div className="relative w-full md:w-1/3">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-            <Search className="h-4 w-4" />
+            <span className="text-sm" aria-hidden="true">
+              🔍
+            </span>
           </span>
           <input
             type="text"
@@ -413,9 +408,10 @@ export default function WorkOrdersPage() {
             type="button"
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 hover:bg-slate-50"
           >
-            <Filter className="h-4 w-4" />
             <span>Status</span>
-            <ChevronDown className="h-3 w-3" />
+            <span className="text-xs" aria-hidden="true">
+              ▾
+            </span>
           </button>
 
           {/* Priority filter */}
@@ -424,7 +420,9 @@ export default function WorkOrdersPage() {
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 hover:bg-slate-50"
           >
             <span>Priority</span>
-            <ChevronDown className="h-3 w-3" />
+            <span className="text-xs" aria-hidden="true">
+              ▾
+            </span>
           </button>
 
           {/* Technician filter (admin only) */}
@@ -434,7 +432,9 @@ export default function WorkOrdersPage() {
               className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 hover:bg-slate-50"
             >
               <span>Technician</span>
-              <ChevronDown className="h-3 w-3" />
+              <span className="text-xs" aria-hidden="true">
+                ▾
+              </span>
             </button>
           )}
 
@@ -443,8 +443,10 @@ export default function WorkOrdersPage() {
             type="button"
             className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 hover:bg-slate-50"
           >
-            <CalendarRange className="h-4 w-4" />
             <span>Date Range</span>
+            <span className="text-xs" aria-hidden="true">
+              📅
+            </span>
           </button>
         </div>
       </div>
