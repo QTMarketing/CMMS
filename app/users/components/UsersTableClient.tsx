@@ -110,6 +110,35 @@ export default function UsersTableClient({ initialUsers }: Props) {
     }
   }
 
+  async function handleDeleteUser(user: UserRow) {
+    if (
+      !window.confirm(
+        `Are you sure you want to remove the account for ${user.email}? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/users/${encodeURIComponent(user.id)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || (data && data.success === false)) {
+        window.alert(
+          data?.error || "Failed to delete user. Please try again later."
+        );
+        return;
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
+    } catch (err) {
+      console.error("Error deleting user", err);
+      window.alert("Unexpected error while deleting user.");
+    }
+  }
+
   return (
     <div className="space-y-3">
       {error && (
@@ -165,13 +194,22 @@ export default function UsersTableClient({ initialUsers }: Props) {
                   {linkedTechLabel}
                 </td>
                 <td className="px-4 py-3 text-sm">
-                  <button
-                    type="button"
-                    onClick={() => handleResetPasswordClick(user)}
-                    className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Reset Password
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleResetPasswordClick(user)}
+                      className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Reset Password
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteUser(user)}
+                      className="inline-flex items-center rounded-md border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                    >
+                      Remove Account
+                    </button>
+                  </div>
                 </td>
               </tr>
             );

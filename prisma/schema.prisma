@@ -199,7 +199,7 @@ model Store {
   address   String?
   city      String?
   state     String?
-  timezone  String?
+  zipCode   String?
   createdAt DateTime @default(now())
 
   users          User[]

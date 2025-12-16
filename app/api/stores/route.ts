@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, code, address, city, state, timezone } = body ?? {};
+    const { name, code, address, city, state, zipCode } = body ?? {};
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
@@ -95,11 +95,12 @@ export async function POST(req: NextRequest) {
       data: {
         name: name.trim(),
         code: code && code.trim() ? code.trim() : null,
-        address: address && typeof address === "string" ? address.trim() : null,
+        address:
+          address && typeof address === "string" ? address.trim() : null,
         city: city && typeof city === "string" ? city.trim() : null,
         state: state && typeof state === "string" ? state.trim() : null,
-        timezone:
-          timezone && typeof timezone === "string" ? timezone.trim() : null,
+        zipCode:
+          zipCode && typeof zipCode === "string" ? zipCode.trim() : null,
       },
     });
 

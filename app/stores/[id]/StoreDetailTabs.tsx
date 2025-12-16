@@ -1,0 +1,414 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+
+type Store = {
+  id: string;
+  name: string;
+  code: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+};
+
+type Asset = {
+  id: string;
+  name: string;
+  assetId: number | null;
+  location: string;
+  status: string;
+};
+
+type Part = {
+  id: string;
+  name: string;
+  partNumber: string;
+  quantityOnHand: number;
+  reorderThreshold: number;
+  location: string | null;
+};
+
+type Request = {
+  id: string;
+  title: string;
+  status: string;
+  createdAt: string;
+};
+
+type Schedule = {
+  id: string;
+  title: string;
+  assetName: string | null;
+  nextDueDate: string | null;
+};
+
+type Props = {
+  store: Store;
+  assets: Asset[];
+  parts: Part[];
+  requests: Request[];
+  schedules: Schedule[];
+};
+
+const tabs = ["Assets", "Parts", "Requests", "Preventive Maintenance"] as const;
+
+export default function StoreDetailTabs({
+  store,
+  assets,
+  parts,
+  requests,
+  schedules,
+}: Props) {
+  const [activeTab, setActiveTab] =
+    useState<(typeof tabs)[number]>("Assets");
+
+  const locationLabel =
+    (store.city && store.state
+      ? `${store.city}, ${store.state}`
+      : store.city || store.state || "") || "—";
+
+  return (
+    <div className="px-2 sm:px-4 md:px-6 py-4 md:py-8 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+            {store.name}
+          </h1>
+          <p className="text-sm text-gray-600">
+            Store code:{" "}
+            <span className="font-mono">
+              {store.code || store.id.slice(0, 8).toUpperCase()}
+            </span>
+          </p>
+          <p className="text-xs text-gray-500 mt-1">
+            Location: {locationLabel}
+            {store.zipCode ? ` (${store.zipCode})` : ""}
+          </p>
+        </div>
+        <Link
+          href="/stores"
+          className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+        >
+          ← Back to Stores
+        </Link>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex flex-wrap gap-2" aria-label="Tabs">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab;
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium sm:text-sm ${
+                  isActive
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                {tab}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Content */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 md:p-6">
+        {activeTab === "Assets" && (
+          <AssetsTab assets={assets} storeId={store.id} />
+        )}
+        {activeTab === "Parts" && (
+          <PartsTab parts={parts} storeId={store.id} />
+        )}
+        {activeTab === "Requests" && (
+          <RequestsTab requests={requests} />
+        )}
+        {activeTab === "Preventive Maintenance" && (
+          <PmTab schedules={schedules} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AssetsTab({ assets, storeId }: { assets: Asset[]; storeId: string }) {
+  if (assets.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">
+        No assets found for this store.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Assets in this Store
+        </h2>
+        <Link
+          href="/assets"
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          Go to Assets page →
+        </Link>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-xs sm:text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Asset ID
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Name
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Location
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Status
+              </th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {assets.map((asset) => (
+              <tr key={asset.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2 font-mono text-gray-600">
+                  {asset.assetId ?? "—"}
+                </td>
+                <td className="px-3 py-2 text-gray-900 font-medium">
+                  {asset.name}
+                </td>
+                <td className="px-3 py-2 text-gray-600">
+                  {asset.location}
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {asset.status}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <Link
+                    href={`/assets/${asset.id}`}
+                    className="text-xs font-medium text-blue-600 hover:underline"
+                  >
+                    View
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PartsTab({ parts, storeId }: { parts: Part[]; storeId: string }) {
+  if (parts.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">
+        No parts found for this store.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Parts in this Store
+        </h2>
+        <Link
+          href="/inventory"
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          Go to Parts page →
+        </Link>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-xs sm:text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Name
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Part #
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Qty
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Threshold
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Location
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {parts.map((p) => (
+              <tr key={p.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2 text-gray-900 font-medium">
+                  {p.name}
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {p.partNumber}
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {p.quantityOnHand}
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {p.reorderThreshold}
+                </td>
+                <td className="px-3 py-2 text-gray-600">
+                  {p.location || "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function RequestsTab({ requests }: { requests: Request[] }) {
+  if (requests.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">
+        No maintenance requests for this store.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Maintenance Requests
+        </h2>
+        <Link
+          href="/requests"
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          Go to Requests page →
+        </Link>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-xs sm:text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Request ID
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Title
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Status
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Created
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {requests.map((r) => (
+              <tr key={r.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2 font-mono text-gray-600">
+                  {r.id}
+                </td>
+                <td className="px-3 py-2 text-gray-900 font-medium">
+                  {r.title}
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {r.status}
+                </td>
+                <td className="px-3 py-2 text-gray-600">
+                  {new Date(r.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PmTab({ schedules }: { schedules: Schedule[] }) {
+  if (schedules.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">
+        No preventive maintenance schedules for this store.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Preventive Maintenance
+        </h2>
+        <Link
+          href="/pm"
+          className="text-xs font-medium text-blue-600 hover:underline"
+        >
+          Go to PM page →
+        </Link>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-xs sm:text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Schedule ID
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Title
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Asset
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Next Due Date
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {schedules.map((s) => (
+              <tr key={s.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2 font-mono text-gray-600">
+                  {s.id}
+                </td>
+                <td className="px-3 py-2 text-gray-900 font-medium">
+                  {s.title}
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {s.assetName || "—"}
+                </td>
+                <td className="px-3 py-2 text-gray-600">
+                  {s.nextDueDate
+                    ? new Date(s.nextDueDate).toLocaleDateString()
+                    : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+

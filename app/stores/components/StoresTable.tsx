@@ -12,7 +12,7 @@ type Store = {
   address?: string | null;
   city: string | null;
   state: string | null;
-  timezone: string | null;
+  zipCode?: string | null;
   createdAt: Date | string;
   users?: {
     email: string;
@@ -222,7 +222,11 @@ export default function StoresTable({ stores }: StoresTableProps) {
                 </tr>
               ) : (
                 filteredStores.map((store) => (
-                  <tr key={store.id} className="hover:bg-gray-50">
+                  <tr
+                    key={store.id}
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => router.push(`/stores/${store.id}`)}
+                  >
                     <td className="p-4 text-gray-500 font-mono">
                       {store.code || `#ST-${formatStoreId(store.id)}`}
                     </td>

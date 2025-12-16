@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { isAdminLike } from "@/lib/roles";
+import { isAdminLike, isMasterAdmin } from "@/lib/roles";
 
 const ALLOWED_ROLES = ["MASTER_ADMIN", "STORE_ADMIN", "ADMIN", "TECHNICIAN", "USER"] as const;
 
@@ -95,6 +95,75 @@ export async function PATCH(
     console.error("Error updating user role:", err);
     return NextResponse.json(
       { success: false, error: "Failed to update user." },
+      { status: 500 }
+    );
+  }
+}
+
+// Delete a user account (MASTER_ADMIN only)
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    const sessionUser = session?.user as any;
+    const sessionRole = sessionUser?.role as string | undefined;
+
+    if (!session || !isMasterAdmin(sessionRole)) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    const { id: userId } = await params;
+
+    const existing = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: "User not found." },
+        { status: 404 }
+      );
+    }
+
+    // Prevent deleting yourself
+    if (sessionUser?.id && sessionUser.id === existing.id) {
+      return NextResponse.json(
+        { success: false, error: "You cannot delete your own account." },
+        { status: 400 }
+      );
+    }
+
+    // Optionally, protect last MASTER_ADMIN from deletion
+    if (existing.role === "MASTER_ADMIN") {
+      const masterCount = await prisma.user.count({
+        where: { role: "MASTER_ADMIN" },
+      });
+      if (masterCount <= 1) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "You cannot delete this account because it is the last MASTER_ADMIN.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    await prisma.user.delete({
+      where: { id: userId },
+    });
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (err) {
+    console.error("Error deleting user:", err);
+    return NextResponse.json(
+      { success: false, error: "Failed to delete user." },
       { status: 500 }
     );
   }

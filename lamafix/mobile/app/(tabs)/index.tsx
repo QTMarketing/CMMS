@@ -42,8 +42,9 @@ export default function HomeScreen() {
   const recentOrders = orders.slice(0, 5);
 
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <ScrollView
+    <>
+      <SafeAreaView className="flex-1 bg-white">
+        <ScrollView
         className="flex-1 px-6 pt-10"
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -150,9 +151,12 @@ export default function HomeScreen() {
               </Text>
             </View>
           ))}
+            </>
+          )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </>
   );
 }
 

@@ -13,7 +13,7 @@ type Store = {
   address?: string | null;
   city: string | null;
   state: string | null;
-  timezone: string | null;
+  zipCode?: string | null;
 };
 
 type EditStoreDrawerProps = {
@@ -33,7 +33,7 @@ export default function EditStoreDrawer({
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
-  const [timezone, setTimezone] = useState("");
+  const [zipCode, setZipCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +44,7 @@ export default function EditStoreDrawer({
       setAddress(store.address || "");
       setCity(store.city || "");
       setState(store.state || "");
-      setTimezone(store.timezone || "");
+      setZipCode(store.zipCode || "");
       setError(null);
     }
   }, [store]);
@@ -79,7 +79,7 @@ export default function EditStoreDrawer({
           address: address.trim() || undefined,
           city: city.trim() || undefined,
           state: state.trim() || undefined,
-          timezone: timezone.trim() || undefined,
+          zipCode: zipCode.trim() || undefined,
         }),
       });
 
@@ -189,14 +189,14 @@ export default function EditStoreDrawer({
 
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">
-            Timezone
+            ZIP / Postal Code
           </label>
           <input
             type="text"
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
+            value={zipCode}
+            onChange={(e) => setZipCode(e.target.value)}
             className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-gray-300 focus:outline-none focus:ring-0"
-            placeholder="e.g. America/Los_Angeles"
+            placeholder="e.g. 94103"
           />
         </div>
 
