@@ -59,6 +59,8 @@ export default function AssetsPage() {
   const [workOrders, setWorkOrders] = useState<any[]>([]);
   const [pmSummaries, setPmSummaries] = useState<any[]>([]);
   const [search, setSearch] = useState("");
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   useEffect(() => {
     fetch("/api/assets", { cache: "no-store" })
@@ -158,10 +160,66 @@ export default function AssetsPage() {
     pmByAsset[assetId] = current;
   }
 
-  const sorted = useMemo(
-    () => [...assets].sort((a, b) => a.name.localeCompare(b.name)),
-    [assets]
-  );
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const getSortValue = (asset: any, column: string): string | number => {
+    switch (column) {
+      case "assetId":
+        return asset.assetId?.toString() || "";
+      case "name":
+        return asset.name?.toLowerCase() || "";
+      case "location":
+        return asset.location?.toLowerCase() || "";
+      case "status":
+        return asset.status?.toLowerCase() || "";
+      case "make":
+        return asset.make?.toLowerCase() || "";
+      case "model":
+        return asset.model?.toLowerCase() || "";
+      case "category":
+        return asset.category?.toLowerCase() || "";
+      case "lastMaintenance":
+        return asset.lastMaintenanceDate
+          ? new Date(asset.lastMaintenanceDate).getTime()
+          : 0;
+      case "nextMaintenance":
+        return asset.nextMaintenanceDate
+          ? new Date(asset.nextMaintenanceDate).getTime()
+          : 0;
+      case "totalWOs":
+        return countsByAsset[asset.id]?.total || 0;
+      case "openWOs":
+        return countsByAsset[asset.id]?.open || 0;
+      default:
+        return "";
+    }
+  };
+
+  const sorted = useMemo(() => {
+    const assetsCopy = [...assets];
+    if (!sortColumn) {
+      // Default sort by name if no column selected
+      return assetsCopy.sort((a, b) => a.name?.localeCompare(b.name || "") || 0);
+    }
+    return assetsCopy.sort((a, b) => {
+      const aVal = getSortValue(a, sortColumn);
+      const bVal = getSortValue(b, sortColumn);
+      if (typeof aVal === "number" && typeof bVal === "number") {
+        return sortDirection === "asc" ? aVal - bVal : bVal - aVal;
+      }
+      const aStr = String(aVal);
+      const bStr = String(bVal);
+      const comparison = aStr.localeCompare(bStr);
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [assets, sortColumn, sortDirection, workOrders]);
 
   const visibleAssets = useMemo(() => {
     if (!search.trim()) return sorted;
@@ -336,22 +394,132 @@ export default function AssetsPage() {
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                <th className="p-4">Asset ID</th>
-                <th className="p-4">Asset Name</th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("assetId")}
+                >
+                  <div className="flex items-center gap-1">
+                    Asset ID
+                    {sortColumn === "assetId" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("name")}
+                >
+                  <div className="flex items-center gap-1">
+                    Asset Name
+                    {sortColumn === "name" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
                 <th className="p-4">Parent Asset ID</th>
                 <th className="p-4">Parent Asset Name</th>
                 <th className="p-4">Tool Check-Out</th>
                 <th className="p-4">Check-Out Approval</th>
                 <th className="p-4">Default WO Template</th>
-                <th className="p-4">Make</th>
-                <th className="p-4">Model</th>
-                <th className="p-4">Category</th>
-                <th className="p-4">Location</th>
-                <th className="p-4">Status</th>
-                <th className="p-4">Last Maintenance</th>
-                <th className="p-4">Next Maintenance</th>
-                <th className="p-4">Total WOs</th>
-                <th className="p-4">Open WOs</th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("make")}
+                >
+                  <div className="flex items-center gap-1">
+                    Make
+                    {sortColumn === "make" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("model")}
+                >
+                  <div className="flex items-center gap-1">
+                    Model
+                    {sortColumn === "model" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("category")}
+                >
+                  <div className="flex items-center gap-1">
+                    Category
+                    {sortColumn === "category" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("location")}
+                >
+                  <div className="flex items-center gap-1">
+                    Location
+                    {sortColumn === "location" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("status")}
+                >
+                  <div className="flex items-center gap-1">
+                    Status
+                    {sortColumn === "status" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("lastMaintenance")}
+                >
+                  <div className="flex items-center gap-1">
+                    Last Maintenance
+                    {sortColumn === "lastMaintenance" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("nextMaintenance")}
+                >
+                  <div className="flex items-center gap-1">
+                    Next Maintenance
+                    {sortColumn === "nextMaintenance" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("totalWOs")}
+                >
+                  <div className="flex items-center gap-1">
+                    Total WOs
+                    {sortColumn === "totalWOs" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
+                  onClick={() => handleSort("openWOs")}
+                >
+                  <div className="flex items-center gap-1">
+                    Open WOs
+                    {sortColumn === "openWOs" && (
+                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </div>
+                </th>
                 <th className="p-4">PM</th>
               </tr>
             </thead>
