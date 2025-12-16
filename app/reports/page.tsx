@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
+import { isAdminLike } from "@/lib/roles";
 
 interface Store {
   id: string;
@@ -23,7 +24,7 @@ export default function ReportsPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
   const role = (session?.user as any)?.role as string | undefined;
-  const isMasterAdmin = role === "MASTER_ADMIN";
+  const isAdmin = isAdminLike(role);
   const isSessionLoading = sessionStatus === "loading";
 
   const [stores, setStores] = useState<Store[]>([]);
@@ -36,16 +37,16 @@ export default function ReportsPage() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
-  // Redirect non-master admins
+  // Redirect non-admins
   useEffect(() => {
-    if (!isSessionLoading && !isMasterAdmin) {
+    if (!isSessionLoading && !isAdmin) {
       router.push("/");
     }
-  }, [isSessionLoading, isMasterAdmin, router]);
+  }, [isSessionLoading, isAdmin, router]);
 
   // Load stores
   useEffect(() => {
-    if (!isMasterAdmin) return;
+    if (!isAdmin) return;
 
     setLoadingStores(true);
     fetch("/api/stores", { cache: "no-store" })
@@ -67,11 +68,11 @@ export default function ReportsPage() {
         setError("Failed to load stores");
       })
       .finally(() => setLoadingStores(false));
-  }, [isMasterAdmin, selectedStoreId]);
+  }, [isAdmin, selectedStoreId]);
 
   // Load reports when store is selected
   useEffect(() => {
-    if (!isMasterAdmin || !selectedStoreId) {
+    if (!isAdmin || !selectedStoreId) {
       setReports([]);
       return;
     }
@@ -94,7 +95,7 @@ export default function ReportsPage() {
         setError("Failed to load reports");
       })
       .finally(() => setLoadingReports(false));
-  }, [isMasterAdmin, selectedStoreId]);
+  }, [isAdmin, selectedStoreId]);
 
   async function handleGenerateReport() {
     if (!selectedStoreId) {
@@ -156,7 +157,7 @@ export default function ReportsPage() {
     return <div className="p-8">Loading...</div>;
   }
 
-  if (!isMasterAdmin) {
+  if (!isAdmin) {
     return null;
   }
 

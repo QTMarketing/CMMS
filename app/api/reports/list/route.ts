@@ -5,7 +5,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 
 import { authOptions } from "@/lib/auth";
-import { isMasterAdmin } from "@/lib/roles";
+import { isAdminLike } from "@/lib/roles";
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,9 +20,12 @@ export async function GET(req: NextRequest) {
 
     const role = (session.user as any)?.role as string | undefined;
 
-    if (!isMasterAdmin(role)) {
+    if (!isAdminLike(role)) {
       return NextResponse.json(
-        { success: false, error: "Forbidden. Only master admins can list reports." },
+        {
+          success: false,
+          error: "Forbidden. Only admins can list reports.",
+        },
         { status: 403 }
       );
     }

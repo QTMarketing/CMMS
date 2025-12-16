@@ -6,7 +6,7 @@ import { existsSync } from "fs";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { isMasterAdmin } from "@/lib/roles";
+import { isAdminLike } from "@/lib/roles";
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,9 +21,12 @@ export async function POST(req: NextRequest) {
 
     const role = (session.user as any)?.role as string | undefined;
 
-    if (!isMasterAdmin(role)) {
+    if (!isAdminLike(role)) {
       return NextResponse.json(
-        { success: false, error: "Forbidden. Only master admins can generate reports." },
+        {
+          success: false,
+          error: "Forbidden. Only admins can generate reports.",
+        },
         { status: 403 }
       );
     }

@@ -90,34 +90,50 @@ export default function HomeScreen() {
           ) : (
             <>
               {openOrders.map((order) => (
-            <TouchableOpacity
-              key={order.id}
-              className="mb-3 rounded-lg bg-white p-4 shadow-sm shadow-black/5"
-              activeOpacity={0.9}
-            >
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1">
-                  <Text className="text-base font-semibold text-gray-900">
-                    {order.title}
-                  </Text>
-                  <Text className="mt-1 text-sm text-gray-500">{order.site}</Text>
-                  <Text className="mt-1 text-xs text-gray-400">
-                    Priority: {order.priority.charAt(0).toUpperCase() + order.priority.slice(1)}
-                  </Text>
-                </View>
-                <View className="items-end">
-                  <Text
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColors[order.status] ?? 'bg-slate-100 text-slate-700'}`}
-                  >
-                    {statusLabels[order.status] ?? order.status}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={20} color="#94a3b8" style={{ marginTop: 8 }} />
-                </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-          {openOrders.length === 0 && (
-            <Text className="text-sm text-gray-500">No open work orders.</Text>
+                <TouchableOpacity
+                  key={order.id}
+                  className="mb-3 rounded-lg bg-white p-4 shadow-sm shadow-black/5"
+                  activeOpacity={0.9}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-1">
+                      <Text className="text-base font-semibold text-gray-900">
+                        {order.title}
+                      </Text>
+                      <Text className="mt-1 text-sm text-gray-500">
+                        {order.site}
+                      </Text>
+                      <Text className="mt-1 text-xs text-gray-400">
+                        Priority:{" "}
+                        {order.priority.charAt(0).toUpperCase() +
+                          order.priority.slice(1)}
+                      </Text>
+                    </View>
+                    <View className="items-end">
+                      <Text
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          statusColors[order.status] ??
+                          "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {statusLabels[order.status] ?? order.status}
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={20}
+                        color="#94a3b8"
+                        style={{ marginTop: 8 }}
+                      />
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              {openOrders.length === 0 && (
+                <Text className="text-sm text-gray-500">
+                  No open work orders.
+                </Text>
+              )}
+            </>
           )}
         </View>
 
