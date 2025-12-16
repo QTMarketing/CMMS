@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { apiService } from '../lib/api';
+import { apiService, API_BASE_URL } from '../lib/api';
 
 // Import AsyncStorage dynamically to avoid issues
 let AsyncStorage: any;
@@ -98,10 +98,6 @@ export const useAuthStore = create<AuthState>((set) => ({
         // Verify token by making a test API call
         // If successful, user is authenticated
         try {
-          const API_BASE_URL = __DEV__ 
-            ? 'http://localhost:3000/api'
-            : 'https://your-production-domain.com/api';
-          
           const response = await fetch(`${API_BASE_URL}/workorders`, {
             headers: {
               'Authorization': `Bearer ${token}`,

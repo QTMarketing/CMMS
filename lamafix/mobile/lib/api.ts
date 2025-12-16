@@ -1,7 +1,15 @@
-// API Base URL - Update this to your production URL
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3000/api' // For local development - change to your local IP if testing on device
-  : 'https://your-production-domain.com/api'; // Production URL
+// API base URL for the backend API.
+// In production we want to hit the deployed Vercel app.
+// In development you can still point to your local Next.js dev server.
+import Constants from 'expo-constants';
+
+const expoExtra = (Constants as any)?.expoConfig?.extra || {};
+
+// Configure this in app.json / app.config.*:
+// "extra": { "apiUrl": "https://cmms-theta.vercel.app/api" }
+export const API_BASE_URL: string =
+  (expoExtra.apiUrl as string | undefined) ??
+  (__DEV__ ? 'http://localhost:3000/api' : 'https://cmms-theta.vercel.app/api');
 
 interface ApiResponse<T> {
   success: boolean;

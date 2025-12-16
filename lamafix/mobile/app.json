@@ -28,6 +28,9 @@
     },
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "apiUrl": "https://cmms-theta.vercel.app/api"
+    }
   }
 }

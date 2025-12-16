@@ -110,6 +110,18 @@ export default function TransferDrawer({
     e.preventDefault();
     setError(null);
 
+    // Determine the effective fromStoreId
+    const effectiveFromStoreId = currentFromStoreId || fromStoreId || asset?.storeId || inventoryItem?.storeId;
+
+    if (!effectiveFromStoreId) {
+      setError(
+        type === "ASSET"
+          ? "Cannot transfer asset: The asset does not have a store assigned. Please assign the asset to a store first."
+          : "Cannot transfer inventory item: The item does not have a store assigned. Please assign the item to a store first."
+      );
+      return;
+    }
+
     if (!toStoreId) {
       setError("Please select a destination store.");
       return;
@@ -136,7 +148,7 @@ export default function TransferDrawer({
           assetId: type === "ASSET" ? assetId : undefined,
           inventoryItemId: type === "INVENTORY" ? inventoryItemId : undefined,
           quantity: type === "INVENTORY" ? quantity : undefined,
-          fromStoreId: currentFromStoreId || fromStoreId || asset?.storeId || inventoryItem?.storeId,
+          fromStoreId: effectiveFromStoreId,
           toStoreId,
           workOrderId,
           notes: notes.trim() || undefined,
@@ -212,7 +224,7 @@ export default function TransferDrawer({
             </div>
 
             {/* From Store */}
-            {fromStore && (
+            {fromStore ? (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   From Store
@@ -224,7 +236,14 @@ export default function TransferDrawer({
                   )}
                 </div>
               </div>
-            )}
+            ) : !loadingData && (asset || inventoryItem) ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ This {type === "ASSET" ? "asset" : "inventory item"} is not assigned to any store. 
+                  Please assign it to a store before transferring.
+                </p>
+              </div>
+            ) : null}
 
             {/* To Store */}
             <div>
@@ -304,7 +323,7 @@ export default function TransferDrawer({
               <button
                 type="submit"
                 className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                disabled={loading || !toStoreId}
+                disabled={loading || !toStoreId || !effectiveFromStoreId}
               >
                 {loading ? "Transferring..." : "Transfer"}
               </button>
