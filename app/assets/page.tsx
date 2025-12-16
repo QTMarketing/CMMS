@@ -62,6 +62,22 @@ export default function AssetsPage() {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
+  // Filter state:
+  // - typeFilter: group by whether an asset has a parent ID or not
+  // - locationFilter: cycle through All + each distinct location
+  // - statusFilter: filter by asset.status
+  // - lastMaintFilter: filter by whether lastMaintenanceDate exists
+  const [typeFilter, setTypeFilter] = useState<"all" | "parent" | "child">(
+    "all"
+  );
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "Active" | "Down" | "Retired"
+  >("all");
+  const [lastMaintFilter, setLastMaintFilter] = useState<
+    "all" | "has" | "none"
+  >("all");
+  const [locationFilterIndex, setLocationFilterIndex] = useState(0);
+
   useEffect(() => {
     fetch("/api/assets", { cache: "no-store" })
       .then((res) => {
@@ -202,6 +218,20 @@ export default function AssetsPage() {
     }
   };
 
+  // Distinct locations for the Location filter (excluding empty)
+  const locationOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of assets) {
+      if (a.location && typeof a.location === "string") {
+        set.add(a.location);
+      }
+    }
+    return ["All", ...Array.from(set).sort()];
+  }, [assets]);
+
+  const locationFilterLabel =
+    locationOptions[locationFilterIndex] ?? locationOptions[0] ?? "All";
+
   const sorted = useMemo(() => {
     const assetsCopy = [...assets];
     if (!sortColumn) {
@@ -222,22 +252,64 @@ export default function AssetsPage() {
   }, [assets, sortColumn, sortDirection, workOrders]);
 
   const visibleAssets = useMemo(() => {
-    if (!search.trim()) return sorted;
-    const q = search.toLowerCase();
+    const q = search.trim().toLowerCase();
     return sorted.filter((a) => {
-      return (
-        a.id?.toLowerCase().includes(q) ||
-        a.name?.toLowerCase().includes(q) ||
-        a.location?.toLowerCase().includes(q) ||
-        a.make?.toLowerCase().includes(q) ||
-        a.model?.toLowerCase().includes(q) ||
-        a.category?.toLowerCase().includes(q) ||
-        a.parentAssetName?.toLowerCase().includes(q) ||
-        (a.assetId && a.assetId.toString().includes(q)) ||
-        (a.parentAssetIdNumber && a.parentAssetIdNumber.toString().includes(q))
-      );
+      // Text search
+      if (q) {
+        const matchesSearch =
+          a.id?.toLowerCase().includes(q) ||
+          a.name?.toLowerCase().includes(q) ||
+          a.location?.toLowerCase().includes(q) ||
+          a.make?.toLowerCase().includes(q) ||
+          a.model?.toLowerCase().includes(q) ||
+          a.category?.toLowerCase().includes(q) ||
+          a.parentAssetName?.toLowerCase().includes(q) ||
+          (a.assetId && a.assetId.toString().includes(q)) ||
+          (a.parentAssetIdNumber &&
+            a.parentAssetIdNumber.toString().includes(q));
+        if (!matchesSearch) return false;
+      }
+
+      // Type filter: parent vs child assets
+      if (typeFilter === "parent" && a.parentAssetIdNumber != null) {
+        return false;
+      }
+      if (typeFilter === "child" && a.parentAssetIdNumber == null) {
+        return false;
+      }
+
+      // Status filter
+      if (statusFilter !== "all" && a.status !== statusFilter) {
+        return false;
+      }
+
+      // Location filter
+      if (
+        locationFilterLabel !== "All" &&
+        (a.location || "") !== locationFilterLabel
+      ) {
+        return false;
+      }
+
+      // Last maintenance filter
+      const hasLastMaint = !!a.lastMaintenanceDate;
+      if (lastMaintFilter === "has" && !hasLastMaint) {
+        return false;
+      }
+      if (lastMaintFilter === "none" && hasLastMaint) {
+        return false;
+      }
+
+      return true;
     });
-  }, [sorted, search]);
+  }, [
+    sorted,
+    search,
+    typeFilter,
+    statusFilter,
+    locationFilterLabel,
+    lastMaintFilter,
+  ]);
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -341,13 +413,25 @@ export default function AssetsPage() {
           </div>
         </div>
 
-        {/* Filter chips (visual only for now) */}
+        {/* Filter chips */}
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200"
+            onClick={() => {
+              setTypeFilter((prev) =>
+                prev === "all" ? "parent" : prev === "parent" ? "child" : "all"
+              );
+            }}
           >
-            <span>Type: All</span>
+            <span>
+              Type:{" "}
+              {typeFilter === "all"
+                ? "All"
+                : typeFilter === "parent"
+                ? "Parent Assets"
+                : "Child Assets"}
+            </span>
             <span className="text-xs" aria-hidden="true">
               ▾
             </span>
@@ -355,8 +439,21 @@ export default function AssetsPage() {
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200"
+            onClick={() => {
+              // Cycle through available locations
+              setLocationFilterIndex((prev) =>
+                locationOptions.length === 0
+                  ? 0
+                  : (prev + 1) % locationOptions.length
+              );
+            }}
           >
-            <span>Location: All</span>
+            <span>
+              Location:{" "}
+              {locationFilterLabel === "All"
+                ? "All"
+                : locationFilterLabel || "All"}
+            </span>
             <span className="text-xs" aria-hidden="true">
               ▾
             </span>
@@ -364,8 +461,18 @@ export default function AssetsPage() {
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200"
+            onClick={() => {
+              setStatusFilter((prev) => {
+                if (prev === "all") return "Active";
+                if (prev === "Active") return "Down";
+                if (prev === "Down") return "Retired";
+                return "all";
+              });
+            }}
           >
-            <span>Status: All</span>
+            <span>
+              Status: {statusFilter === "all" ? "All" : statusFilter}
+            </span>
             <span className="text-xs" aria-hidden="true">
               ▾
             </span>
@@ -373,8 +480,20 @@ export default function AssetsPage() {
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1 rounded-lg bg-slate-100 px-3 text-xs font-medium text-slate-700 hover:bg-slate-200"
+            onClick={() => {
+              setLastMaintFilter((prev) =>
+                prev === "all" ? "has" : prev === "has" ? "none" : "all"
+              );
+            }}
           >
-            <span>Last Maintenance</span>
+            <span>
+              Last Maintenance:{" "}
+              {lastMaintFilter === "all"
+                ? "Any"
+                : lastMaintFilter === "has"
+                ? "With Date"
+                : "None"}
+            </span>
             <span className="text-xs" aria-hidden="true">
               ▾
             </span>
