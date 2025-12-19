@@ -248,9 +248,12 @@ export default function StoresTable({ stores }: StoresTableProps) {
                       {formatDate(store.createdAt)}
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-4 text-gray-500">
+                      <div className="flex items-center gap-4 text-gray-500" onClick={(e) => e.stopPropagation()}>
                         <button
-                          onClick={() => handleEdit(store)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(store);
+                          }}
                           className="hover:text-blue-600"
                           title="Edit"
                         >
@@ -269,7 +272,10 @@ export default function StoresTable({ stores }: StoresTableProps) {
                           </svg>
                         </button>
                         <button
-                          onClick={() => handleDelete(store.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(store.id);
+                          }}
                           disabled={deletingStoreId === store.id}
                           className="hover:text-red-600 disabled:opacity-50"
                           title="Delete"

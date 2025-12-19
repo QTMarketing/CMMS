@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import BulkImportDrawer from "@/components/BulkImportDrawer";
 
 type Store = {
   id: string;
@@ -61,6 +63,7 @@ export default function StoreDetailTabs({
   requests,
   schedules,
 }: Props) {
+  const router = useRouter();
   const [activeTab, setActiveTab] =
     useState<(typeof tabs)[number]>("Assets");
 
@@ -139,11 +142,29 @@ export default function StoreDetailTabs({
 }
 
 function AssetsTab({ assets, storeId }: { assets: Asset[]; storeId: string }) {
+  const router = useRouter();
+
+  const handleImportSuccess = () => {
+    router.refresh();
+  };
+
   if (assets.length === 0) {
     return (
-      <p className="text-sm text-gray-500">
-        No assets found for this store.
-      </p>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Assets in this Store
+          </h2>
+          <BulkImportDrawer 
+            type="assets" 
+            onSuccess={handleImportSuccess}
+            defaultStoreId={storeId}
+          />
+        </div>
+        <p className="text-sm text-gray-500">
+          No assets found for this store. Import assets from Excel to get started.
+        </p>
+      </div>
     );
   }
 
@@ -153,12 +174,19 @@ function AssetsTab({ assets, storeId }: { assets: Asset[]; storeId: string }) {
         <h2 className="text-sm font-semibold text-gray-900">
           Assets in this Store
         </h2>
-        <Link
-          href="/assets"
-          className="text-xs font-medium text-blue-600 hover:underline"
-        >
-          Go to Assets page →
-        </Link>
+        <div className="flex items-center gap-3">
+          <BulkImportDrawer 
+            type="assets" 
+            onSuccess={handleImportSuccess}
+            defaultStoreId={storeId}
+          />
+          <Link
+            href="/assets"
+            className="text-xs font-medium text-blue-600 hover:underline"
+          >
+            Go to Assets page →
+          </Link>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-xs sm:text-sm">

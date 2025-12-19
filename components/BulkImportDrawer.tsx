@@ -16,9 +16,14 @@ type StoreOption = {
 interface BulkImportDrawerProps {
   type: "assets" | "inventory";
   onSuccess?: () => void;
+  defaultStoreId?: string; // Add this prop
 }
 
-export default function BulkImportDrawer({ type, onSuccess }: BulkImportDrawerProps) {
+export default function BulkImportDrawer({ 
+  type, 
+  onSuccess,
+  defaultStoreId 
+}: BulkImportDrawerProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const role = (session?.user as any)?.role as string | undefined;
@@ -62,10 +67,13 @@ export default function BulkImportDrawer({ type, onSuccess }: BulkImportDrawerPr
 
   useEffect(() => {
     if (isMaster) return; // master selects explicitly
-    if (userStoreId) {
+    if (defaultStoreId) {
+      // If defaultStoreId is provided (e.g., from store detail page), use it
+      setStoreId(defaultStoreId);
+    } else if (userStoreId) {
       setStoreId(userStoreId);
     }
-  }, [isMaster, userStoreId]);
+  }, [isMaster, userStoreId, defaultStoreId]); // Add defaultStoreId to dependencies
 
   function resetForm() {
     setFile(null);
@@ -108,7 +116,11 @@ export default function BulkImportDrawer({ type, onSuccess }: BulkImportDrawerPr
       formData.append("file", file!);
       if (isMaster && storeId) {
         formData.append("storeId", storeId);
+      } else if (defaultStoreId) {
+        // For non-master admins on store detail page, use the defaultStoreId
+        formData.append("storeId", defaultStoreId);
       }
+      // Note: The API will use session storeId for non-master admins if storeId is not provided
 
       const endpoint = type === "assets" ? "/api/assets/bulk-import" : "/api/inventory/bulk-import";
       const res = await fetch(endpoint, {
