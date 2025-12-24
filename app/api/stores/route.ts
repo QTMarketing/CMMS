@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { nanoid } from "nanoid";
+import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
-    if (!session || !isMasterAdmin((session.user as any)?.role)) {
+    if (!session || !isAdminLike((session.user as any)?.role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -61,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, code, address, city, state, zipCode } = body ?? {};
+    const { name, code, address, city, state, zipCode, managerEmail, managerPassword } = body ?? {};
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
@@ -91,6 +93,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Generate unique QR code token for this store
+    const qrCode = nanoid(32);
+
     const store = await prisma.store.create({
       data: {
         name: name.trim(),
@@ -101,8 +106,84 @@ export async function POST(req: NextRequest) {
         state: state && typeof state === "string" ? state.trim() : null,
         zipCode:
           zipCode && typeof zipCode === "string" ? zipCode.trim() : null,
+        qrCode: qrCode,
       },
     });
+
+    // Optionally create a store manager user account if email and password are provided
+    if (managerEmail && managerPassword) {
+      const emailTrimmed = typeof managerEmail === "string" ? managerEmail.trim() : "";
+      const passwordTrimmed = typeof managerPassword === "string" ? managerPassword.trim() : "";
+
+      if (emailTrimmed && passwordTrimmed) {
+        // Validate email format
+        const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailPattern.test(emailTrimmed)) {
+          // Store was created, but user creation failed due to invalid email
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: "Store created, but manager email is invalid.",
+              data: store 
+            },
+            { status: 400 }
+          );
+        }
+
+        // Validate password length
+        if (passwordTrimmed.length < 6) {
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: "Store created, but password must be at least 6 characters.",
+              data: store 
+            },
+            { status: 400 }
+          );
+        }
+
+        // Check if email already exists
+        const existingUser = await prisma.user.findUnique({
+          where: { email: emailTrimmed },
+        });
+
+        if (existingUser) {
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: "Store created, but email is already in use.",
+              data: store 
+            },
+            { status: 400 }
+          );
+        }
+
+        // Hash password and create user
+        try {
+          const hashedPassword = await bcrypt.hash(passwordTrimmed, 10);
+          
+          await prisma.user.create({
+            data: {
+              email: emailTrimmed,
+              password: hashedPassword,
+              role: "STORE_ADMIN",
+              storeId: store.id,
+            },
+          });
+        } catch (userError) {
+          console.error("Error creating store manager user:", userError);
+          // Store was created successfully, but user creation failed
+          return NextResponse.json(
+            { 
+              success: true, 
+              data: store,
+              warning: "Store created, but failed to create manager user account."
+            },
+            { status: 201 }
+          );
+        }
+      }
+    }
 
     return NextResponse.json(
       { success: true, data: store },

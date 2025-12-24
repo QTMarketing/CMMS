@@ -54,8 +54,8 @@ export default async function StoresPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Store Management</h1>
-        {/* Only show Add Store button for MASTER_ADMIN */}
-        {isMaster && <AddStoreDrawer />}
+        {/* Show Add Store button for MASTER_ADMIN and ADMIN */}
+        {(isMaster || isAdminLike(role)) && <AddStoreDrawer />}
       </div>
 
       <StoresTable stores={stores} />

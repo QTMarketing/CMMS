@@ -200,6 +200,7 @@ model Store {
   city      String?
   state     String?
   zipCode   String?
+  qrCode    String?  @unique // QR code token for public work order form
   createdAt DateTime @default(now())
 
   users          User[]

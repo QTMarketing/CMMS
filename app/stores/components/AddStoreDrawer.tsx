@@ -41,8 +41,6 @@ export default function AddStoreDrawer() {
 
   function validate(): string | null {
     if (!name.trim()) return "Store name is required.";
-    if (!managerEmail.trim()) return "Store manager email is required.";
-    if (!managerPassword.trim()) return "Store manager password is required.";
     return null;
   }
 
@@ -70,6 +68,8 @@ export default function AddStoreDrawer() {
           city: city.trim() || undefined,
           state: state.trim() || undefined,
           zipCode: zipCode.trim() || undefined,
+          managerEmail: managerEmail.trim() || undefined,
+          managerPassword: managerPassword || undefined,
         }),
       });
 
@@ -83,38 +83,6 @@ export default function AddStoreDrawer() {
             : "Failed to create store.");
         setError(message);
         return;
-      }
-
-      const store = data?.data;
-
-      // After creating the store, create a STORE_ADMIN user for this store
-      // so the manager can log in and create work orders/requests.
-      if (store && store.id) {
-        const userRes = await fetch("/api/users", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: `${name.trim()} Manager`,
-            email: managerEmail.trim(),
-            password: managerPassword,
-            role: "STORE_ADMIN",
-            storeId: store.id,
-          }),
-        });
-
-        const userData = await userRes.json().catch(() => null);
-
-        if (!userRes.ok || (userData && userData.success === false)) {
-          const msg =
-            userData?.error ||
-            (userRes.status === 403
-              ? "Store was created, but you are not authorized to create the store manager user."
-              : "Store was created, but failed to create the store manager user.");
-          setError(msg);
-          // We don't return here; the store already exists. We still close the drawer below.
-        }
       }
 
       resetForm();
@@ -248,16 +216,15 @@ export default function AddStoreDrawer() {
 
           <div className="mt-2 border-t border-gray-200 pt-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-2">
-              Store Manager Login
+              Store Manager Account (Optional)
             </h3>
             <p className="text-xs text-gray-500 mb-3">
-              Create a login for the store manager so they can sign in and
-              create work orders and maintenance requests for this location.
+              Optionally create a login account for the store manager. If provided, this will create a user account that can be used to log in and manage this store.
             </p>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Manager Email <span className="text-red-500">*</span>
+                  Manager Email
                 </label>
                 <input
                   type="email"
@@ -265,12 +232,11 @@ export default function AddStoreDrawer() {
                   onChange={(e) => setManagerEmail(e.target.value)}
                   className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   placeholder="manager@store.com"
-                  required
                 />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Manager Password <span className="text-red-500">*</span>
+                  Manager Password
                 </label>
                 <div className="relative">
                   <input
@@ -278,8 +244,7 @@ export default function AddStoreDrawer() {
                     value={managerPassword}
                     onChange={(e) => setManagerPassword(e.target.value)}
                     className="w-full rounded border border-gray-300 px-3 py-1.5 pr-10 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="Enter a secure password"
-                    required
+                    placeholder="Enter a secure password (min 6 characters)"
                   />
                   <button
                     type="button"
@@ -298,6 +263,9 @@ export default function AddStoreDrawer() {
                     )}
                   </button>
                 </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  If both email and password are provided, a STORE_ADMIN user account will be created.
+                </p>
               </div>
             </div>
           </div>

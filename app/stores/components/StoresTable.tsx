@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import EditStoreDrawer from "./EditStoreDrawer";
+import QRCodeModal from "./QRCodeModal";
 
 type Store = {
   id: string;
@@ -33,6 +34,9 @@ export default function StoresTable({ stores }: StoresTableProps) {
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [deletingStoreId, setDeletingStoreId] = useState<string | null>(null);
+  const [qrStoreId, setQrStoreId] = useState<string | null>(null);
+  const [qrStoreName, setQrStoreName] = useState<string>("");
+  const [isQRModalOpen, setIsQRModalOpen] = useState(false);
 
   // Get unique locations for filter
   const locations = useMemo(() => {
@@ -205,7 +209,7 @@ export default function StoresTable({ stores }: StoresTableProps) {
                 <th className="p-4 font-semibold text-gray-600">Store Name</th>
                 <th className="p-4 font-semibold text-gray-600">Location</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
-                <th className="p-4 font-semibold text-gray-600">Contact Person</th>
+                <th className="p-4 font-semibold text-gray-600">Manager</th>
                 <th className="p-4 font-semibold text-gray-600">Creation Date</th>
                 <th className="p-4 font-semibold text-gray-600"></th>
               </tr>
@@ -242,13 +246,50 @@ export default function StoresTable({ stores }: StoresTableProps) {
                       </span>
                     </td>
                     <td className="p-4 text-gray-600">
-                      {getStoreManagerEmail(store)}
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm">{getStoreManagerEmail(store)}</span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQrStoreId(store.id);
+                            setQrStoreName(store.name);
+                            setIsQRModalOpen(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                        >
+                          View QR Code
+                        </button>
+                      </div>
                     </td>
                     <td className="p-4 text-gray-600">
                       {formatDate(store.createdAt)}
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-4 text-gray-500" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQrStoreId(store.id);
+                            setQrStoreName(store.name);
+                            setIsQRModalOpen(true);
+                          }}
+                          className="hover:text-green-600"
+                          title="View QR Code"
+                        >
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"
+                            />
+                          </svg>
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -310,6 +351,17 @@ export default function StoresTable({ stores }: StoresTableProps) {
         onClose={() => {
           setIsEditDrawerOpen(false);
           setEditingStore(null);
+        }}
+      />
+
+      <QRCodeModal
+        storeId={qrStoreId || ""}
+        storeName={qrStoreName}
+        open={isQRModalOpen}
+        onClose={() => {
+          setIsQRModalOpen(false);
+          setQrStoreId(null);
+          setQrStoreName("");
         }}
       />
     </>
