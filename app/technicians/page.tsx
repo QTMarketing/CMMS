@@ -28,32 +28,26 @@ export default async function TechniciansPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const params = await searchParams;
   const session = await getServerSession(authOptions);
-  
+
   if (!session) {
     redirect("/login");
   }
-  
-  const role = (session.user as any)?.role;
+
+  const role = (session.user as any)?.role as string | undefined;
   
   // STORE_ADMIN should not access technicians page
   if (role === "STORE_ADMIN") {
     redirect("/workorders");
   }
-  
-  if (!isAdminLike(role)) {
-    redirect("/workorders");
-  }
-  const params = await searchParams;
-  const session = await getServerSession(authOptions);
-
-  const role = (session?.user as any)?.role as string | undefined;
-  const isMaster = isMasterAdmin(role);
 
   // Technicians must not see this page at all.
-  if (!session || isTechnicianRole(role) || !isAdminLike(role)) {
+  if (isTechnicianRole(role) || !isAdminLike(role)) {
     redirect("/workorders");
   }
+
+  const isMaster = isMasterAdmin(role);
 
   const userStoreId = ((session.user as any)?.storeId ?? null) as
     | string
