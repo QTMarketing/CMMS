@@ -1,21 +1,25 @@
 export type AppRole = "MASTER_ADMIN" | "STORE_ADMIN" | "ADMIN" | "TECHNICIAN" | "USER";
 
 export function isMasterAdmin(role?: string | null): boolean {
-  return role === "MASTER_ADMIN";
+  if (!role) return false;
+  return role.toUpperCase() === "MASTER_ADMIN";
 }
 
 export function isStoreAdmin(role?: string | null): boolean {
-  return role === "STORE_ADMIN";
+  if (!role) return false;
+  return role.toUpperCase() === "STORE_ADMIN";
 }
 
 // For now, treat MASTER_ADMIN, STORE_ADMIN, and legacy ADMIN as "admin-like".
 // In future Phase 6 steps, STORE_ADMIN will be restricted to a single store,
 // but behavior remains global here.
 export function isAdminLike(role?: string | null): boolean {
+  if (!role) return false;
+  const normalizedRole = role.toUpperCase();
   return (
-    role === "MASTER_ADMIN" ||
-    role === "STORE_ADMIN" ||
-    role === "ADMIN"
+    normalizedRole === "MASTER_ADMIN" ||
+    normalizedRole === "STORE_ADMIN" ||
+    normalizedRole === "ADMIN"
   );
 }
 

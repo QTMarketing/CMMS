@@ -22,17 +22,22 @@ export default function PartsPage() {
   const role = (session?.user as any)?.role as string | undefined;
   const isAdmin = isAdminLike(role);
   const isTechnician = role === "TECHNICIAN";
+  const isStoreAdmin = role === "STORE_ADMIN";
   const isSessionLoading = sessionStatus === "loading";
 
-  // Redirect technicians away from this page
+  // Redirect technicians and STORE_ADMIN away from this page
   useEffect(() => {
-    if (!isSessionLoading && isTechnician) {
-      router.push("/");
+    if (!isSessionLoading) {
+      if (isTechnician) {
+        router.push("/");
+      } else if (isStoreAdmin) {
+        router.push("/workorders");
+      }
     }
-  }, [isSessionLoading, isTechnician, router]);
+  }, [isSessionLoading, isTechnician, isStoreAdmin, router]);
 
-  // Show nothing while redirecting technicians
-  if (isTechnician && !isSessionLoading) {
+  // Show nothing while redirecting technicians or STORE_ADMIN
+  if ((isTechnician || isStoreAdmin) && !isSessionLoading) {
     return null;
   }
 

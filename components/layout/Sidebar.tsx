@@ -36,6 +36,7 @@ export default function Sidebar({
   const technicianId = (session?.user as any)?.technicianId as string | undefined;
   const isTechnician = role === "TECHNICIAN";
   const isUser = role === "USER";
+  const isStoreAdmin = role === "STORE_ADMIN";
   const [userName, setUserName] = useState<string>("");
 
   // Fetch technician name if user is a technician
@@ -102,10 +103,11 @@ export default function Sidebar({
   // Filter nav items based on role
   // Technicians can only see Dashboard and PM Schedules
   // Users can only see Work Orders and Requests (to create work orders and requests)
-  // Reports is visible to ADMIN and STORE_ADMIN (not just MASTER_ADMIN)
+  // STORE_ADMIN can only see Dashboard, Work Orders, and PM Schedules (like USER but with dashboard)
+  // Reports is visible to ADMIN and MASTER_ADMIN (not STORE_ADMIN)
   // Users management is only visible to MASTER_ADMIN
   const isMasterAdmin = role === "MASTER_ADMIN";
-  const isAdmin = role === "ADMIN" || role === "STORE_ADMIN";
+  const isAdmin = role === "ADMIN";
   const navItems = isTechnician
     ? allNavItems.filter(
         (item) => item.href === "/" || item.href === "/pm"
@@ -114,19 +116,23 @@ export default function Sidebar({
       ? allNavItems.filter(
           (item) => item.href === "/workorders" || item.href === "/requests"
         )
-      : allNavItems.filter(
-          (item) => {
-            // Users only for master admin
-            if (item.href === "/users") {
-              return isMasterAdmin;
+      : isStoreAdmin
+        ? allNavItems.filter(
+            (item) => item.href === "/" || item.href === "/workorders" || item.href === "/pm"
+          )
+        : allNavItems.filter(
+            (item) => {
+              // Users only for master admin
+              if (item.href === "/users") {
+                return isMasterAdmin;
+              }
+              // Reports for admin and master admin (not for STORE_ADMIN)
+              if (item.href === "/reports") {
+                return isMasterAdmin || isAdmin;
+              }
+              return true;
             }
-            // Reports for admin and master admin (not for regular users)
-            if (item.href === "/reports") {
-              return isMasterAdmin || isAdmin;
-            }
-            return true;
-          }
-        );
+          );
 
   // Detect small screen (tailwind's md: break) using matchMedia
   const [isMobile, setIsMobile] = React.useState(false);

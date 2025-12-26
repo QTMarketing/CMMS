@@ -25,7 +25,20 @@ export default function ReportsPage() {
   const router = useRouter();
   const role = (session?.user as any)?.role as string | undefined;
   const isAdmin = isAdminLike(role);
+  const isStoreAdmin = role === "STORE_ADMIN";
   const isSessionLoading = sessionStatus === "loading";
+
+  // Redirect STORE_ADMIN away from reports page
+  useEffect(() => {
+    if (!isSessionLoading && isStoreAdmin) {
+      router.push("/workorders");
+    }
+  }, [isSessionLoading, isStoreAdmin, router]);
+
+  // Show nothing while redirecting STORE_ADMIN
+  if (isStoreAdmin && !isSessionLoading) {
+    return null;
+  }
 
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>("");

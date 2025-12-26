@@ -14,8 +14,9 @@ export default async function StoresPage() {
   const role = (session?.user as any)?.role;
   const userStoreId = ((session?.user as any)?.storeId ?? null) as string | null;
 
-  // Allow MASTER_ADMIN, ADMIN, and STORE_ADMIN to access stores page
-  if (!session || !isAdminLike(role)) {
+  // Allow MASTER_ADMIN and ADMIN to access stores page
+  // STORE_ADMIN should not access stores page
+  if (!session || !isAdminLike(role) || isStoreAdmin(role)) {
     redirect("/workorders");
   }
 

@@ -61,8 +61,10 @@ export default async function DashboardPage() {
   const isAdmin = role === "ADMIN";
   const isTechnician = role === "TECHNICIAN";
   const isUser = role === "USER";
+  const isStoreAdmin = role === "STORE_ADMIN";
 
   // Redirect USER role to work orders page (they don't have dashboard access)
+  // STORE_ADMIN can access dashboard
   if (isUser) {
     redirect("/workorders");
   }

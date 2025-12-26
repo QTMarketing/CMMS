@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { redirect } from "next/navigation";
 import Badge from "../../components/ui/Badge";
 import DashboardHeader, {
   DashboardSearchItem,
@@ -42,17 +43,22 @@ export default function AssetsPage() {
   const email = ((session?.user as any)?.email as string) ?? "";
   const role = (session?.user as any)?.role as string | undefined;
   const isTechnician = role === "TECHNICIAN";
+  const isStoreAdmin = role === "STORE_ADMIN";
   const isSessionLoading = sessionStatus === "loading";
 
-  // Redirect technicians away from this page
+  // Redirect technicians and STORE_ADMIN away from this page
   useEffect(() => {
-    if (!isSessionLoading && isTechnician) {
-      router.push("/");
+    if (!isSessionLoading) {
+      if (isTechnician) {
+        router.push("/");
+      } else if (isStoreAdmin) {
+        router.push("/workorders");
+      }
     }
-  }, [isSessionLoading, isTechnician, router]);
+  }, [isSessionLoading, isTechnician, isStoreAdmin, router]);
 
-  // Show nothing while redirecting technicians
-  if (isTechnician && !isSessionLoading) {
+  // Show nothing while redirecting technicians or STORE_ADMIN
+  if ((isTechnician || isStoreAdmin) && !isSessionLoading) {
     return null;
   }
   const [assets, setAssets] = useState<any[]>([]);
