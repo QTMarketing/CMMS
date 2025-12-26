@@ -35,7 +35,6 @@ export default async function RequestsPage({
     redirect("/workorders");
   }
 
-  const role = (session.user as any)?.role;
   const isAdmin = isAdminLike(role);
   const isUser = role === "USER";
 
