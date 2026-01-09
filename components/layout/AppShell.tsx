@@ -21,9 +21,10 @@ export function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
   const isLoginPage = pathname === "/login";
+  const isPublicFormPage = pathname?.startsWith("/workorder-form");
 
-  // On login page, render children without sidebar/navbar
-  if (isLoginPage) {
+  // On login page or public work order form page, render children without sidebar/navbar
+  if (isLoginPage || isPublicFormPage) {
     return <>{children}</>;
   }
 

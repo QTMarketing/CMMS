@@ -119,20 +119,20 @@ export default function Sidebar({
       : isStoreAdmin
         ? allNavItems.filter(
             (item) => item.href === "/" || item.href === "/workorders" || item.href === "/pm"
-          )
-        : allNavItems.filter(
-            (item) => {
-              // Users only for master admin
-              if (item.href === "/users") {
-                return isMasterAdmin;
-              }
-              // Reports for admin and master admin (not for STORE_ADMIN)
-              if (item.href === "/reports") {
-                return isMasterAdmin || isAdmin;
-              }
-              return true;
+        )
+      : allNavItems.filter(
+          (item) => {
+            // Users only for master admin
+            if (item.href === "/users") {
+              return isMasterAdmin;
             }
-          );
+              // Reports for admin and master admin (not for STORE_ADMIN)
+            if (item.href === "/reports") {
+              return isMasterAdmin || isAdmin;
+            }
+            return true;
+          }
+        );
 
   // Detect small screen (tailwind's md: break) using matchMedia
   const [isMobile, setIsMobile] = React.useState(false);

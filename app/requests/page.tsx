@@ -27,7 +27,7 @@ export default async function RequestsPage({
   if (!session) {
     redirect("/login");
   }
-  
+
   const role = (session.user as any)?.role;
   
   // STORE_ADMIN should not access requests page

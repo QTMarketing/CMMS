@@ -43,8 +43,10 @@ export const authOptions: NextAuthOptions = {
         if (!isValid) return null;
 
         // Only allow known, supported roles to sign in.
+        // Make role comparison case-insensitive
         const allowedRoles = ["MASTER_ADMIN", "STORE_ADMIN", "TECHNICIAN", "ADMIN", "USER"];
-        if (!allowedRoles.includes(user.role)) {
+        const normalizedUserRole = user.role.toUpperCase();
+        if (!allowedRoles.includes(normalizedUserRole)) {
           return null;
         }
 

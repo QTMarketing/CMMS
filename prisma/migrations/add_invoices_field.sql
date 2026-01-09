@@ -8,3 +8,5 @@ ADD COLUMN IF NOT EXISTS "invoices" TEXT[] DEFAULT ARRAY[]::TEXT[];
 COMMENT ON COLUMN "WorkOrder"."invoices" IS 'Array of file URLs for invoices (PDF, JPEG, Excel files)';
 
 
+
+

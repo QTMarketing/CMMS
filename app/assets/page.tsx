@@ -50,7 +50,7 @@ export default function AssetsPage() {
   useEffect(() => {
     if (!isSessionLoading) {
       if (isTechnician) {
-        router.push("/");
+      router.push("/");
       } else if (isStoreAdmin) {
         router.push("/workorders");
       }
