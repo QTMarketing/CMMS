@@ -82,14 +82,6 @@ export default function DashboardHeader({
       </div>
 
       <div className="flex items-center justify-between gap-4 md:justify-end">
-        <Link
-          href="/workorders"
-          className="flex items-center gap-2 rounded bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
-        >
-          <span className="text-lg leading-none">+</span>
-          <span>New Work Order</span>
-        </Link>
-
         {/* Notification bell with dropdown */}
         <div className="relative">
           <button

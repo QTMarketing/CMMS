@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Drawer from "../../components/ui/Drawer";
 import WorkOrderDetails from "../../components/workorders/WorkOrderDetails";
 import CreateWorkOrderForm from "../../components/workorders/CreateWorkOrderForm";
@@ -61,6 +61,7 @@ function formatDate(date: DateInput) {
 export default function WorkOrdersPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   // While the session is loading on the client, avoid making assumptions
   // about the user's role. This prevents briefly treating an admin as a
@@ -103,9 +104,24 @@ export default function WorkOrdersPage() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [stores, setStores] = useState<{ id: string; name: string; code?: string | null }[]>([]);
 
+  // Initialize filter from URL query parameter if present
+  const urlFilter = searchParams?.get("filter");
+  const validFilters = ["all", "open", "inProgress", "completed", "overdue"] as const;
+  const initialFilter = (urlFilter && validFilters.includes(urlFilter as any)) 
+    ? (urlFilter as typeof validFilters[number])
+    : "all";
+  
   const [filter, setFilter] = useState<
     "all" | "open" | "inProgress" | "completed" | "overdue"
-  >("all");
+  >(initialFilter);
+
+  // Update filter when URL query parameter changes
+  useEffect(() => {
+    const urlFilter = searchParams?.get("filter");
+    if (urlFilter && validFilters.includes(urlFilter as any)) {
+      setFilter(urlFilter as typeof validFilters[number]);
+    }
+  }, [searchParams]);
 
   // 🔹 NEW: technician filter
   const [techFilter, setTechFilter] = useState<string>("all");

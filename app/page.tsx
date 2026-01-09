@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import DashboardHeader from "../components/dashboard/DashboardHeader";
 import TechnicianDashboard from "../components/dashboard/TechnicianDashboard";
+import ClickableStatusDonut from "../components/dashboard/ClickableStatusDonut";
 
 // Helper types/functions for date handling (kept internal to this file)
 type DateInput = string | Date | null | undefined;
@@ -282,29 +283,6 @@ export default async function DashboardPage() {
   const donutTotal =
     donutPending + donutOverdue + donutCompleted + donutInProgress;
 
-  let donutGradient = "conic-gradient(#e5e7eb 0% 100%)"; // gray fallback
-
-  if (donutTotal > 0) {
-    const segments = [
-      { color: "#F59E0B", value: donutPending }, // yellow
-      { color: "#EF4444", value: donutOverdue }, // red
-      { color: "#10B981", value: donutCompleted }, // green
-      { color: "#3B82F6", value: donutInProgress }, // blue
-    ];
-
-    let current = 0;
-    const parts: string[] = [];
-
-    for (const seg of segments) {
-      const start = current;
-      const end = current + (seg.value / donutTotal) * 100;
-      parts.push(`${seg.color} ${start}% ${end}%`);
-      current = end;
-    }
-
-    donutGradient = `conic-gradient(${parts.join(", ")})`;
-  }
-
   // Maintenance trend: last 7 days based on created work orders
   const last7 = trendData.slice(-7);
   const maxCreated =
@@ -450,52 +428,13 @@ export default async function DashboardPage() {
               <span className="ml-1 align-middle text-xs">&#9662;</span>
             </button>
           </div>
-          <div className="flex flex-col gap-6 md:flex-row md:items-center">
-            <div className="relative flex-shrink-0 mx-auto md:mx-0">
-              <div
-                className="relative h-36 w-36 rounded-full"
-                style={{ backgroundImage: donutGradient }}
-              >
-                <div className="absolute inset-4 rounded-full bg-white" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-slate-900">
-                    {donutTotal}
-                  </span>
-                  <span className="text-sm text-slate-500">in total</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex-1 space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-amber-400" />
-                  <span>Pending</span>
-                </div>
-                <span className="font-medium">{donutPending}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-red-500" />
-                  <span>Overdue</span>
-                </div>
-                <span className="font-medium">{donutOverdue}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-emerald-500" />
-                  <span>Completed</span>
-                </div>
-                <span className="font-medium">{donutCompleted}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-blue-500" />
-                  <span>In Progress</span>
-                </div>
-                <span className="font-medium">{donutInProgress}</span>
-              </div>
-            </div>
-          </div>
+          <ClickableStatusDonut
+            pending={donutPending}
+            overdue={donutOverdue}
+            completed={donutCompleted}
+            inProgress={donutInProgress}
+            total={donutTotal}
+          />
         </div>
 
         {/* Upcoming Maintenance Schedules */}
