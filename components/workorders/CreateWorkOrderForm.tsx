@@ -31,7 +31,6 @@ export default function CreateWorkOrderForm({
   const isUser = role === "USER";
 
   const [title, setTitle] = useState("");
-  const [location, setLocation] = useState("");
   const [assetId, setAssetId] = useState("");
   const [partsRequired, setPartsRequired] = useState(false);
   const [problemDescription, setProblemDescription] = useState("");
@@ -144,8 +143,8 @@ export default function CreateWorkOrderForm({
 
   function validate() {
     if (!title.trim()) return "Title is required.";
-    if (!location.trim()) return "Location is required.";
-    if (!assetId) return "Asset is required.";
+    // Location removed - using store location instead
+    // Asset is now optional - removed validation
     if (!problemDescription.trim())
       return "Where or What is the problem? is required.";
     if (!helpDescription.trim()) return "How can we help? is required.";
@@ -168,8 +167,8 @@ export default function CreateWorkOrderForm({
     try {
       const requestBody = {
         title,
-        location,
-        assetId,
+        // Location removed - store location will be used instead
+        assetId: assetId || undefined, // Make assetId optional
         partsRequired,
         problemDescription,
         helpDescription,
@@ -255,28 +254,14 @@ export default function CreateWorkOrderForm({
 
       <div>
         <label className="block text-sm font-medium mb-1">
-          Location <span className="text-red-500">*</span>
-        </label>
-        <input
-          className="w-full border rounded px-3 py-1"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          placeholder="Enter the location of the issue"
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium mb-1">
-          Asset <span className="text-red-500">*</span>
+          Asset
         </label>
         <select
           className="w-full border rounded px-3 py-1"
           value={assetId}
           onChange={(e) => setAssetId(e.target.value)}
-          required
         >
-          <option value="">Select asset…</option>
+          <option value="">Select asset (optional)…</option>
           {assets.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}

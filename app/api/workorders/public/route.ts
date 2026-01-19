@@ -44,15 +44,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!location || typeof location !== "string" || !location.trim()) {
+    // Location is now optional - store location will be used instead
+    // Asset is now optional - only validate if provided
+    if (assetId && typeof assetId !== "string") {
       return NextResponse.json(
-        { success: false, error: "Location is required." },
-        { status: 400 }
-      );
-    }
-    if (!assetId || typeof assetId !== "string") {
-      return NextResponse.json(
-        { success: false, error: "Asset is required." },
+        { success: false, error: "Invalid asset ID." },
         { status: 400 }
       );
     }
@@ -81,24 +77,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify asset exists and belongs to the store
-    const asset = await prisma.asset.findUnique({
-      where: { id: assetId },
-      select: { id: true, storeId: true },
-    });
+    // Verify asset exists and belongs to the store (only if assetId is provided)
+    if (assetId) {
+      const asset = await prisma.asset.findUnique({
+        where: { id: assetId },
+        select: { id: true, storeId: true },
+      });
 
-    if (!asset) {
-      return NextResponse.json(
-        { success: false, error: "Asset not found." },
-        { status: 400 }
-      );
-    }
+      if (!asset) {
+        return NextResponse.json(
+          { success: false, error: "Asset not found." },
+          { status: 400 }
+        );
+      }
 
-    if (asset.storeId !== store.id) {
-      return NextResponse.json(
-        { success: false, error: "Asset does not belong to this store." },
-        { status: 400 }
-      );
+      if (asset.storeId !== store.id) {
+        return NextResponse.json(
+          { success: false, error: "Asset does not belong to this store." },
+          { status: 400 }
+        );
+      }
     }
 
     // Create work order
@@ -106,8 +104,8 @@ export async function POST(req: NextRequest) {
       data: {
         id: nanoid(),
         title: title.trim(),
-        location: location.trim(),
-        assetId: assetId,
+        location: null, // Location removed - using store location instead
+        assetId: assetId || null,
         problemDescription: problemDescription.trim(),
         helpDescription: helpDescription.trim(),
         priority: priority,

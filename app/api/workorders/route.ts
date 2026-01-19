@@ -201,15 +201,11 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    if (!location || typeof location !== "string" || !location.trim()) {
+    // Location is now optional - store location will be used instead
+    // Asset is now optional - only validate if provided
+    if (assetId && typeof assetId !== "string") {
       return NextResponse.json(
-        { success: false, error: "Location is required." },
-        { status: 400 }
-      );
-    }
-    if (!assetId || typeof assetId !== "string") {
-      return NextResponse.json(
-        { success: false, error: "Asset is required." },
+        { success: false, error: "Invalid asset ID." },
         { status: 400 }
       );
     }
@@ -231,12 +227,15 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const asset = await prisma.asset.findUnique({ where: { id: assetId } });
-    if (!asset) {
-      return NextResponse.json(
-        { success: false, error: "Asset not found." },
-        { status: 400 }
-      );
+    // Only validate asset exists if assetId is provided
+    if (assetId) {
+      const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+      if (!asset) {
+        return NextResponse.json(
+          { success: false, error: "Asset not found." },
+          { status: 400 }
+        );
+      }
     }
     if (assignedTo) {
       const tech = await prisma.technician.findUnique({
@@ -301,14 +300,18 @@ export async function POST(request: Request) {
 
     // Optional safety: if the asset has a storeId, ensure it matches the
     // chosen storeId so we don't cross-link stores and assets.
-    if (asset.storeId && asset.storeId !== finalStoreId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Selected asset does not belong to the chosen store.",
-        },
-        { status: 400 }
-      );
+    // Only check if assetId was provided
+    if (assetId) {
+      const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+      if (asset && asset.storeId && asset.storeId !== finalStoreId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Selected asset does not belong to the chosen store.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Normalize dueDate: expect "YYYY-MM-DD" string from the client and
@@ -332,8 +335,8 @@ export async function POST(request: Request) {
       data: {
         id: nanoid(),
         title,
-        location: location || undefined,
-        assetId,
+        location: null, // Location removed - using store location instead
+        assetId: assetId || null, // Allow null for optional asset
         partsRequired: partsRequired === true,
         problemDescription: problemDescription || undefined,
         helpDescription: helpDescription || undefined,

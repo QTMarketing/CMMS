@@ -83,8 +83,8 @@ model WorkOrder {
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
 
-  assetId String
-  asset   Asset  @relation(fields: [assetId], references: [id])
+  assetId String?
+  asset   Asset?  @relation(fields: [assetId], references: [id])
 
   assignedToId String?
   assignedTo   Technician? @relation("TechnicianWorkOrders", fields: [assignedToId], references: [id])

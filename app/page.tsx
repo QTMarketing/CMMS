@@ -300,9 +300,9 @@ export default async function DashboardPage() {
             id: w.id,
             type: "workorder" as const,
             title: w.title,
-            description: `Asset: ${
-              assetMap[w.assetId] || w.assetId
-            } • Status: ${w.status}`,
+            description: w.assetId
+              ? `Asset: ${assetMap[w.assetId] || w.assetId} • Status: ${w.status}`
+              : `Status: ${w.status}`,
             href: `/workorders/${w.id}`,
           })),
           // Assets

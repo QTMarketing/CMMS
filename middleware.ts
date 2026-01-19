@@ -1,4 +1,4 @@
-export { default } from "next-auth/middleware";
+import nextAuthMiddleware from "next-auth/middleware";
 
 // Protect all routes by default, except for:
 // - /login (public login page)
@@ -7,6 +7,8 @@ export { default } from "next-auth/middleware";
 // - /api/stores/qr/* (public API to fetch store by QR code)
 // - /api/workorders/public (public API to create work order via QR code)
 // - /favicon.ico and Next.js static/_next assets
+export default nextAuthMiddleware;
+
 export const config = {
   matcher: [
     /*

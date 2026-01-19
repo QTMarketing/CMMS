@@ -275,7 +275,7 @@ export default function WorkOrdersPage() {
     const searchLower = search.toLowerCase();
     rows = rows.filter((w) => {
       const assetName =
-        assetMap[w.assetId]?.name?.toLowerCase() || "";
+        w.assetId ? (assetMap[w.assetId]?.name?.toLowerCase() || "") : "";
       return (
         w.title.toLowerCase().includes(searchLower) ||
         assetName.includes(searchLower)
@@ -337,9 +337,9 @@ export default function WorkOrdersPage() {
         id: w.id,
         type: "workorder" as const,
         title: w.title,
-        description: `Asset: ${
-          assetMap[w.assetId]?.name || w.assetId
-        } • Status: ${w.status}`,
+            description: w.assetId
+              ? `Asset: ${assetMap[w.assetId]?.name || w.assetId} • Status: ${w.status}`
+              : `Status: ${w.status}`,
         href: `/workorders/${w.id}`,
       })),
       // Assets
@@ -547,7 +547,7 @@ export default function WorkOrdersPage() {
                       </div>
                     </td>
                     <td className="p-4 align-top text-slate-600">
-                      {assetMap[w.assetId]?.name || w.assetId}
+                      {w.assetId ? (assetMap[w.assetId]?.name || w.assetId) : "—"}
                     </td>
                     <td className="p-4 align-top text-slate-600">
                       {formatDate(w.dueDate)}
@@ -587,7 +587,7 @@ export default function WorkOrdersPage() {
         {selected && (
           <WorkOrderDetails
             workOrder={selected}
-            asset={assetMap[selected.assetId]}
+            asset={selected.assetId ? assetMap[selected.assetId] : undefined}
             technicianMap={techMap}
           />
         )}

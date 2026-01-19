@@ -7,7 +7,7 @@ export type WorkOrder = {
   createdAt: Date;
   dueDate?: Date;
   completedAt?: Date | null;
-  assetId: string;
+  assetId?: string | null;
   assignedToId?: string | null;
 };
 
