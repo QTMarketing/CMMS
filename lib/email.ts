@@ -1,27 +1,45 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM =
-  process.env.EMAIL_FROM || "QuickTrack CMMS <aryan.poudel@quicktrackinc.com>";
+  process.env.EMAIL_FROM || "QuickTrack CMMS <no-reply@quicktrackinc.com>";
 
-const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = process.env.SMTP_PORT
+  ? parseInt(process.env.SMTP_PORT, 10)
+  : 587;
+const SMTP_USER = process.env.SMTP_USER;
+const SMTP_PASS = process.env.SMTP_PASS;
+
+const smtpEnabled = SMTP_HOST && SMTP_USER && SMTP_PASS;
+
+const transporter = smtpEnabled
+  ? nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+    })
+  : null;
 
 export async function sendEmail({
   to,
   subject,
   html,
 }: {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
 }): Promise<void> {
-  if (!RESEND_API_KEY || !resendClient) {
-    console.warn("[email] RESEND_API_KEY not set, skipping email send");
+  if (!transporter || !smtpEnabled) {
+    console.warn("[email] SMTP not fully configured, skipping email send");
     return;
   }
 
   try {
-    await resendClient.emails.send({
+    await transporter.sendMail({
       from: EMAIL_FROM,
       to,
       subject,

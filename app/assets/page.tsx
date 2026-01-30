@@ -134,53 +134,61 @@ export default function AssetsPage() {
       });
   }, []);
 
-  const countsByAsset: Record<
-    string,
-    {
-      total: number;
-      open: number;
-    }
-  > = {};
+  const countsByAsset = useMemo(() => {
+    const counts: Record<
+      string,
+      {
+        total: number;
+        open: number;
+      }
+    > = {};
 
-  for (const wo of workOrders) {
-    if (!wo || !wo.assetId) continue;
-    const existing = countsByAsset[wo.assetId] || { total: 0, open: 0 };
-    existing.total += 1;
-    if (wo.status === "Open") existing.open += 1;
-    countsByAsset[wo.assetId] = existing;
-  }
+    for (const wo of workOrders) {
+      if (!wo || !wo.assetId) continue;
+      const existing = counts[wo.assetId] || { total: 0, open: 0 };
+      existing.total += 1;
+      if (wo.status === "Open") existing.open += 1;
+      counts[wo.assetId] = existing;
+    }
+
+    return counts;
+  }, [workOrders]);
 
   // Build a quick PM status summary per asset using daysUntilDue / due flags from /api/schedules
-  const pmByAsset: Record<
-    string,
-    { hasPm: boolean; status: "on-track" | "due-soon" | "overdue" }
-  > = {};
+  const pmByAsset = useMemo(() => {
+    const pm: Record<
+      string,
+      { hasPm: boolean; status: "on-track" | "due-soon" | "overdue" }
+    > = {};
 
-  for (const pm of pmSummaries as any[]) {
-    const assetId = pm.assetId;
-    if (!assetId) continue;
+    for (const pmItem of pmSummaries as any[]) {
+      const assetId = pmItem.assetId;
+      if (!assetId) continue;
 
-    const current = pmByAsset[assetId] || {
-      hasPm: false,
-      status: "on-track" as const,
-    };
+      const current = pm[assetId] || {
+        hasPm: false,
+        status: "on-track" as const,
+      };
 
-    current.hasPm = true;
+      current.hasPm = true;
 
-    const daysUntilDue = pm.daysUntilDue;
-    const isDue = pm.due; // from API: true when daysUntilDue <= 0 and active
+      const daysUntilDue = pmItem.daysUntilDue;
+      const isDue = pmItem.due; // from API: true when daysUntilDue <= 0 and active
 
-    if (isDue) {
-      current.status = "overdue";
-    } else if (typeof daysUntilDue === "number" && daysUntilDue <= 7) {
-      // within a week
-      if (current.status !== "overdue") {
-        current.status = "due-soon";
+      if (isDue) {
+        current.status = "overdue";
+      } else if (typeof daysUntilDue === "number" && daysUntilDue <= 7) {
+        // within a week
+        if (current.status !== "overdue") {
+          current.status = "due-soon";
+        }
       }
+
+      pm[assetId] = current;
     }
 
-    pmByAsset[assetId] = current;
-  }
+    return pm;
+  }, [pmSummaries]);
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -255,7 +263,7 @@ export default function AssetsPage() {
       const comparison = aStr.localeCompare(bStr);
       return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [assets, sortColumn, sortDirection, workOrders]);
+  }, [assets, sortColumn, sortDirection, countsByAsset]);
 
   const visibleAssets = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -419,6 +427,48 @@ export default function AssetsPage() {
           </div>
         </div>
 
+        {/* Sort dropdown */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-medium text-slate-700">Sort by:</label>
+          <select
+            value={sortColumn || ""}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value) {
+                setSortColumn(value);
+              } else {
+                setSortColumn(null);
+              }
+            }}
+            className="h-8 rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="">Name (Default)</option>
+            <option value="assetId">Asset ID</option>
+            <option value="name">Asset Name</option>
+            <option value="make">Make</option>
+            <option value="model">Model</option>
+            <option value="category">Category</option>
+            <option value="location">Location</option>
+            <option value="status">Status</option>
+            <option value="lastMaintenance">Last Maintenance</option>
+            <option value="nextMaintenance">Next Maintenance</option>
+            <option value="totalWOs">Total Work Orders</option>
+            <option value="openWOs">Open Work Orders</option>
+          </select>
+          {sortColumn && (
+            <select
+              value={sortDirection}
+              onChange={(e) =>
+                setSortDirection(e.target.value as "asc" | "desc")
+              }
+              className="h-8 rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="asc">Ascending ↑</option>
+              <option value="desc">Descending ↓</option>
+            </select>
+          )}
+        </div>
+
         {/* Filter chips */}
         <div className="flex flex-wrap gap-2">
           <button
@@ -519,25 +569,19 @@ export default function AssetsPage() {
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("assetId")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Asset ID
                     {sortColumn === "assetId" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("name")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Asset Name
                     {sortColumn === "name" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
@@ -546,102 +590,75 @@ export default function AssetsPage() {
                 <th className="p-4">Tool Check-Out</th>
                 <th className="p-4">Check-Out Approval</th>
                 <th className="p-4">Default WO Template</th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("make")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Make
                     {sortColumn === "make" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("model")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Model
                     {sortColumn === "model" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("category")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Category
                     {sortColumn === "category" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("location")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Location
                     {sortColumn === "location" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("status")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Status
                     {sortColumn === "status" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("lastMaintenance")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Last Maintenance
                     {sortColumn === "lastMaintenance" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("nextMaintenance")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Next Maintenance
                     {sortColumn === "nextMaintenance" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("totalWOs")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Total WOs
                     {sortColumn === "totalWOs" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>
-                <th
-                  className="p-4 cursor-pointer hover:bg-slate-100 select-none"
-                  onClick={() => handleSort("openWOs")}
-                >
+                <th className="p-4">
                   <div className="flex items-center gap-1">
                     Open WOs
                     {sortColumn === "openWOs" && (
-                      <span>{sortDirection === "asc" ? "↑" : "↓"}</span>
+                      <span className="text-xs">{sortDirection === "asc" ? "↑" : "↓"}</span>
                     )}
                   </div>
                 </th>

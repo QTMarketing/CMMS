@@ -17,7 +17,12 @@ type StoreOption = {
   code?: string | null;
 };
 
-export default function AddInventoryDrawer() {
+interface AddInventoryDrawerProps {
+  defaultStoreId?: string;
+  onSuccess?: () => void;
+}
+
+export default function AddInventoryDrawer({ defaultStoreId, onSuccess }: AddInventoryDrawerProps = {}) {
   const router = useRouter();
   const { data: session } = useSession();
   const role = (session?.user as any)?.role as string | undefined;
@@ -33,7 +38,7 @@ export default function AddInventoryDrawer() {
     useState<number | string>(0);
   const [location, setLocation] = useState("");
   const [stores, setStores] = useState<StoreOption[]>([]);
-  const [storeId, setStoreId] = useState<string>("");
+  const [storeId, setStoreId] = useState<string>(defaultStoreId || "");
   const [loading, setLoading] = useState(false);
   const [loadingStores, setLoadingStores] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,11 +63,21 @@ export default function AddInventoryDrawer() {
   }, [open, isMaster, stores.length, loadingStores]);
 
   useEffect(() => {
-    if (isMaster) return;
-    if (userStoreId) {
+    if (defaultStoreId) {
+      setStoreId(defaultStoreId);
+    } else if (isMaster) {
+      // master selects explicitly - don't auto-set
+    } else if (userStoreId) {
       setStoreId(userStoreId);
     }
-  }, [isMaster, userStoreId]);
+  }, [isMaster, userStoreId, defaultStoreId]);
+
+  // Reset storeId when drawer opens/closes if defaultStoreId is provided
+  useEffect(() => {
+    if (open && defaultStoreId) {
+      setStoreId(defaultStoreId);
+    }
+  }, [open, defaultStoreId]);
 
   const storeOptions = useMemo(
     () =>
@@ -79,7 +94,9 @@ export default function AddInventoryDrawer() {
     setQuantityOnHand(0);
     setReorderThreshold(0);
     setLocation("");
-    if (isMaster) setStoreId("");
+    // Preserve defaultStoreId if provided, otherwise reset
+    if (isMaster && !defaultStoreId) setStoreId("");
+    else if (defaultStoreId) setStoreId(defaultStoreId);
     setError(null);
   }
 
@@ -142,9 +159,13 @@ export default function AddInventoryDrawer() {
 
       resetForm();
       setOpen(false);
-      startTransition(() => {
-        router.refresh();
-      });
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        startTransition(() => {
+          router.refresh();
+        });
+      }
     } catch {
       setError("Unexpected error while creating part.");
     } finally {

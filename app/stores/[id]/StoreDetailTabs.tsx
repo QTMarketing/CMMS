@@ -4,6 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import BulkImportDrawer from "@/components/BulkImportDrawer";
+import AddAssetDrawer from "@/app/assets/components/AddAssetDrawer";
+import AddInventoryDrawer from "@/app/inventory/components/AddInventoryDrawer";
+import AddRequestDrawer from "../components/AddRequestDrawer";
+import AddPMScheduleDrawer from "../components/AddPMScheduleDrawer";
+import AddPurchaseOrderDrawer from "../components/AddPurchaseOrderDrawer";
 
 type Store = {
   id: string;
@@ -46,15 +51,25 @@ type Schedule = {
   nextDueDate: string | null;
 };
 
+type PurchaseOrder = {
+  id: string;
+  poNumber: number;
+  status: string;
+  orderDate: string;
+  vendorName?: string | null;
+  total?: number | null;
+};
+
 type Props = {
   store: Store;
   assets: Asset[];
   parts: Part[];
   requests: Request[];
   schedules: Schedule[];
+  purchaseOrders?: PurchaseOrder[];
 };
 
-const tabs = ["Assets", "Parts", "Requests", "Preventive Maintenance"] as const;
+const tabs = ["Assets", "Parts", "Requests", "Preventive Maintenance", "Purchase Orders"] as const;
 
 export default function StoreDetailTabs({
   store,
@@ -62,6 +77,7 @@ export default function StoreDetailTabs({
   parts,
   requests,
   schedules,
+  purchaseOrders = [],
 }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] =
@@ -131,10 +147,13 @@ export default function StoreDetailTabs({
           <PartsTab parts={parts} storeId={store.id} />
         )}
         {activeTab === "Requests" && (
-          <RequestsTab requests={requests} />
+          <RequestsTab requests={requests} storeId={store.id} />
         )}
         {activeTab === "Preventive Maintenance" && (
-          <PmTab schedules={schedules} />
+          <PmTab schedules={schedules} storeId={store.id} />
+        )}
+        {activeTab === "Purchase Orders" && (
+          <PurchaseOrdersTab purchaseOrders={purchaseOrders} storeId={store.id} />
         )}
       </div>
     </div>
@@ -148,6 +167,10 @@ function AssetsTab({ assets, storeId }: { assets: Asset[]; storeId: string }) {
     router.refresh();
   };
 
+  const handleAddSuccess = () => {
+    router.refresh();
+  };
+
   if (assets.length === 0) {
     return (
       <div className="space-y-3">
@@ -155,14 +178,20 @@ function AssetsTab({ assets, storeId }: { assets: Asset[]; storeId: string }) {
           <h2 className="text-sm font-semibold text-gray-900">
             Assets in this Store
           </h2>
-          <BulkImportDrawer 
-            type="assets" 
-            onSuccess={handleImportSuccess}
-            defaultStoreId={storeId}
-          />
+          <div className="flex items-center gap-2">
+            <AddAssetDrawer 
+              defaultStoreId={storeId}
+              onSuccess={handleAddSuccess}
+            />
+            <BulkImportDrawer 
+              type="assets" 
+              onSuccess={handleImportSuccess}
+              defaultStoreId={storeId}
+            />
+          </div>
         </div>
         <p className="text-sm text-gray-500">
-          No assets found for this store. Import assets from Excel to get started.
+          No assets found for this store. Add or import assets to get started.
         </p>
       </div>
     );
@@ -174,7 +203,11 @@ function AssetsTab({ assets, storeId }: { assets: Asset[]; storeId: string }) {
         <h2 className="text-sm font-semibold text-gray-900">
           Assets in this Store
         </h2>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <AddAssetDrawer 
+            defaultStoreId={storeId}
+            onSuccess={handleAddSuccess}
+          />
           <BulkImportDrawer 
             type="assets" 
             onSuccess={handleImportSuccess}
@@ -240,11 +273,39 @@ function AssetsTab({ assets, storeId }: { assets: Asset[]; storeId: string }) {
 }
 
 function PartsTab({ parts, storeId }: { parts: Part[]; storeId: string }) {
+  const router = useRouter();
+
+  const handleAddSuccess = () => {
+    router.refresh();
+  };
+
+  const handleImportSuccess = () => {
+    router.refresh();
+  };
+
   if (parts.length === 0) {
     return (
-      <p className="text-sm text-gray-500">
-        No parts found for this store.
-      </p>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Parts in this Store
+          </h2>
+          <div className="flex items-center gap-2">
+            <AddInventoryDrawer 
+              defaultStoreId={storeId}
+              onSuccess={handleAddSuccess}
+            />
+            <BulkImportDrawer 
+              type="inventory" 
+              onSuccess={handleImportSuccess}
+              defaultStoreId={storeId}
+            />
+          </div>
+        </div>
+        <p className="text-sm text-gray-500">
+          No parts found for this store. Add or import parts to get started.
+        </p>
+      </div>
     );
   }
 
@@ -254,12 +315,23 @@ function PartsTab({ parts, storeId }: { parts: Part[]; storeId: string }) {
         <h2 className="text-sm font-semibold text-gray-900">
           Parts in this Store
         </h2>
-        <Link
-          href="/inventory"
-          className="text-xs font-medium text-blue-600 hover:underline"
-        >
-          Go to Parts page →
-        </Link>
+        <div className="flex items-center gap-2">
+          <AddInventoryDrawer 
+            defaultStoreId={storeId}
+            onSuccess={handleAddSuccess}
+          />
+          <BulkImportDrawer 
+            type="inventory" 
+            onSuccess={handleImportSuccess}
+            defaultStoreId={storeId}
+          />
+          <Link
+            href="/inventory"
+            className="text-xs font-medium text-blue-600 hover:underline"
+          >
+            Go to Parts page →
+          </Link>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-xs sm:text-sm">
@@ -309,12 +381,29 @@ function PartsTab({ parts, storeId }: { parts: Part[]; storeId: string }) {
   );
 }
 
-function RequestsTab({ requests }: { requests: Request[] }) {
+function RequestsTab({ requests, storeId }: { requests: Request[]; storeId: string }) {
+  const router = useRouter();
+
+  const handleAddSuccess = () => {
+    router.refresh();
+  };
+
   if (requests.length === 0) {
     return (
-      <p className="text-sm text-gray-500">
-        No maintenance requests for this store.
-      </p>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Maintenance Requests
+          </h2>
+          <AddRequestDrawer 
+            defaultStoreId={storeId}
+            onSuccess={handleAddSuccess}
+          />
+        </div>
+        <p className="text-sm text-gray-500">
+          No maintenance requests for this store. Add a request to get started.
+        </p>
+      </div>
     );
   }
 
@@ -324,12 +413,18 @@ function RequestsTab({ requests }: { requests: Request[] }) {
         <h2 className="text-sm font-semibold text-gray-900">
           Maintenance Requests
         </h2>
-        <Link
-          href="/requests"
-          className="text-xs font-medium text-blue-600 hover:underline"
-        >
-          Go to Requests page →
-        </Link>
+        <div className="flex items-center gap-2">
+          <AddRequestDrawer 
+            defaultStoreId={storeId}
+            onSuccess={handleAddSuccess}
+          />
+          <Link
+            href="/requests"
+            className="text-xs font-medium text-blue-600 hover:underline"
+          >
+            Go to Requests page →
+          </Link>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-xs sm:text-sm">
@@ -373,12 +468,29 @@ function RequestsTab({ requests }: { requests: Request[] }) {
   );
 }
 
-function PmTab({ schedules }: { schedules: Schedule[] }) {
+function PmTab({ schedules, storeId }: { schedules: Schedule[]; storeId: string }) {
+  const router = useRouter();
+
+  const handleAddSuccess = () => {
+    router.refresh();
+  };
+
   if (schedules.length === 0) {
     return (
-      <p className="text-sm text-gray-500">
-        No preventive maintenance schedules for this store.
-      </p>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Preventive Maintenance
+          </h2>
+          <AddPMScheduleDrawer 
+            defaultStoreId={storeId}
+            onSuccess={handleAddSuccess}
+          />
+        </div>
+        <p className="text-sm text-gray-500">
+          No preventive maintenance schedules for this store. Add a schedule to get started.
+        </p>
+      </div>
     );
   }
 
@@ -388,12 +500,18 @@ function PmTab({ schedules }: { schedules: Schedule[] }) {
         <h2 className="text-sm font-semibold text-gray-900">
           Preventive Maintenance
         </h2>
-        <Link
-          href="/pm"
-          className="text-xs font-medium text-blue-600 hover:underline"
-        >
-          Go to PM page →
-        </Link>
+        <div className="flex items-center gap-2">
+          <AddPMScheduleDrawer 
+            defaultStoreId={storeId}
+            onSuccess={handleAddSuccess}
+          />
+          <Link
+            href="/pm"
+            className="text-xs font-medium text-blue-600 hover:underline"
+          >
+            Go to PM page →
+          </Link>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-xs sm:text-sm">
@@ -428,6 +546,103 @@ function PmTab({ schedules }: { schedules: Schedule[] }) {
                 <td className="px-3 py-2 text-gray-600">
                   {s.nextDueDate
                     ? new Date(s.nextDueDate).toLocaleDateString()
+                    : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PurchaseOrdersTab({
+  purchaseOrders,
+  storeId,
+}: {
+  purchaseOrders: PurchaseOrder[];
+  storeId: string;
+}) {
+  const router = useRouter();
+
+  const handleAddSuccess = () => {
+    router.refresh();
+  };
+
+  if (!purchaseOrders.length) {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Purchase Orders
+          </h2>
+          <AddPurchaseOrderDrawer
+            defaultStoreId={storeId}
+            onSuccess={handleAddSuccess}
+          />
+        </div>
+        <p className="text-sm text-gray-500">
+          No purchase orders for this store. Create a PO to start tracking purchases for assets and parts.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Purchase Orders
+        </h2>
+        <div className="flex items-center gap-2">
+          <AddPurchaseOrderDrawer
+            defaultStoreId={storeId}
+            onSuccess={handleAddSuccess}
+          />
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-xs sm:text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                PO #
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Vendor
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Status
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Date
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {purchaseOrders.map((po) => (
+              <tr key={po.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2 font-mono text-gray-700">
+                  {po.poNumber}
+                </td>
+                <td className="px-3 py-2 text-gray-900">
+                  {po.vendorName || "—"}
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {po.status}
+                </td>
+                <td className="px-3 py-2 text-gray-600">
+                  {po.orderDate
+                    ? new Date(po.orderDate).toLocaleDateString()
+                    : "—"}
+                </td>
+                <td className="px-3 py-2 text-gray-900">
+                  {typeof po.total === "number"
+                    ? `$${po.total.toFixed(2)}`
                     : "—"}
                 </td>
               </tr>

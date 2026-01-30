@@ -39,7 +39,7 @@ export default async function StoreDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const [assets, parts, requests, schedules] = await Promise.all([
+  const [assets, parts, requests, schedules, purchaseOrders] = await Promise.all([
     prisma.asset.findMany({
       where: { storeId: id },
       select: {
@@ -87,6 +87,27 @@ export default async function StoreDetailPage({ params }: PageProps) {
       orderBy: { nextDueDate: "asc" },
       take: 50,
     }),
+    prisma.purchaseOrder.findMany({
+      where: { storeId: id },
+      select: {
+        id: true,
+        poNumber: true,
+        status: true,
+        orderDate: true,
+        vendor: {
+          select: {
+            name: true,
+          },
+        },
+        items: {
+          select: {
+            totalPrice: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
   ]);
 
   const serializableStore = {
@@ -106,6 +127,18 @@ export default async function StoreDetailPage({ params }: PageProps) {
     nextDueDate: s.nextDueDate ? s.nextDueDate.toISOString() : null,
   }));
 
+  const serializablePurchaseOrders = purchaseOrders.map((po) => ({
+    id: po.id,
+    poNumber: po.poNumber,
+    status: po.status,
+    orderDate: po.orderDate.toISOString(),
+    vendorName: po.vendor?.name ?? null,
+    total:
+      po.items && po.items.length
+        ? po.items.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
+        : 0,
+  }));
+
   return (
     <StoreDetailTabs
       store={serializableStore}
@@ -116,6 +149,7 @@ export default async function StoreDetailPage({ params }: PageProps) {
         createdAt: r.createdAt.toISOString(),
       }))}
       schedules={serializableSchedules}
+      purchaseOrders={serializablePurchaseOrders}
     />
   );
 }

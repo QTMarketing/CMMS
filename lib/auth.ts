@@ -44,7 +44,7 @@ export const authOptions: NextAuthOptions = {
 
         // Only allow known, supported roles to sign in.
         // Make role comparison case-insensitive
-        const allowedRoles = ["MASTER_ADMIN", "STORE_ADMIN", "TECHNICIAN", "ADMIN", "USER"];
+        const allowedRoles = ["MASTER_ADMIN", "STORE_ADMIN", "VENDOR", "ADMIN", "USER"];
         const normalizedUserRole = user.role.toUpperCase();
         if (!allowedRoles.includes(normalizedUserRole)) {
           return null;
@@ -55,7 +55,7 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email,
           role: user.role,
-          technicianId: user.technicianId,
+          vendorId: user.vendorId,
           storeId: user.storeId,
         };
       },
@@ -67,7 +67,7 @@ export const authOptions: NextAuthOptions = {
       // When user logs in, copy extra fields from `user` into `token`
       if (user) {
         token.role = (user as any).role;
-        token.technicianId = (user as any).technicianId;
+        token.vendorId = (user as any).vendorId;
         (token as any).storeId = (user as any).storeId ?? null;
         token.sub = (user as any).id ?? token.sub;
       }
@@ -78,7 +78,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         (session.user as any).id = token.sub;
         (session.user as any).role = token.role;
-        (session.user as any).technicianId = token.technicianId;
+        (session.user as any).vendorId = token.vendorId;
         (session.user as any).storeId = (token as any).storeId ?? null;
       }
       return session;

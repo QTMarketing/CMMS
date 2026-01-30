@@ -6,11 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import {
   isAdminLike,
-  isTechnician as isTechnicianRole,
+  isVendor as isVendorRole,
   isMasterAdmin,
 } from "@/lib/roles";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
-import { sendWorkOrderAssignedEmail } from "@/lib/email";
+import { sendEmail, sendWorkOrderAssignedEmail, sendWorkOrderUpdateEmail } from "@/lib/email";
 import { verifyMobileToken } from "@/lib/mobileAuth";
 
 export async function GET(req: NextRequest) {
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     // Try NextAuth session first (for web)
     let session = await getServerSession(authOptions);
     let role: string | undefined;
-    let technicianId: string | null = null;
+    let vendorId: string | null = null;
     let userStoreId: string | null = null;
 
     // If no session, try mobile token
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
       }
     } else {
       role = (session.user as any)?.role as string | undefined;
-      technicianId = ((session.user as any)?.technicianId ?? null) as
+      vendorId = ((session.user as any)?.vendorId ?? null) as
         | string
         | null;
       userStoreId = ((session.user as any)?.storeId ?? null) as
@@ -63,14 +63,14 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (isTechnicianRole(role)) {
-      // Technicians must only ever see their own assigned work orders.
-      // If, for some reason, their user account is not linked to a technician
+    if (isVendorRole(role)) {
+      // Vendors must only ever see their own assigned work orders.
+      // If, for some reason, their user account is not linked to a vendor
       // record, they should see nothing rather than all store work orders.
-      if (!technicianId) {
+      if (!vendorId) {
         where.assignedToId = "__never_match__";
       } else {
-        where.assignedToId = technicianId;
+        where.assignedToId = vendorId;
       }
     }
 
@@ -168,9 +168,9 @@ export async function POST(request: Request) {
       userId = (session.user as any)?.id as string | undefined;
     }
 
-    // Only admin-like roles and USER may create work orders; TECHNICIAN explicitly forbidden.
+    // Only admin-like roles and USER may create work orders; VENDOR explicitly forbidden.
     const canCreate = isAdminLike(role) || role === "USER";
-    if (!canCreate || isTechnicianRole(role)) {
+    if (!canCreate || isVendorRole(role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -238,12 +238,12 @@ export async function POST(request: Request) {
       }
     }
     if (assignedTo) {
-      const tech = await prisma.technician.findUnique({
+      const vendor = await prisma.vendor.findUnique({
         where: { id: assignedTo },
       });
-      if (!tech) {
+      if (!vendor) {
         return NextResponse.json(
-          { success: false, error: "Technician not found." },
+          { success: false, error: "Vendor not found." },
           { status: 400 }
         );
       }
@@ -354,7 +354,7 @@ export async function POST(request: Request) {
 
     if (newWorkOrder.assignedToId) {
       try {
-        const technician = await prisma.technician.findUnique({
+        const vendor = await prisma.vendor.findUnique({
           where: { id: newWorkOrder.assignedToId },
           select: {
             email: true,
@@ -367,7 +367,7 @@ export async function POST(request: Request) {
           },
         });
 
-        if (technician?.email) {
+        if (vendor?.email) {
           const store = newWorkOrder.storeId
             ? await prisma.store.findUnique({
                 where: { id: newWorkOrder.storeId },
@@ -380,11 +380,11 @@ export async function POST(request: Request) {
             : undefined;
 
           await sendWorkOrderAssignedEmail({
-            technicianEmail: technician.email,
-            technicianName: technician.name || undefined,
+            technicianEmail: vendor.email,
+            technicianName: vendor.name || undefined,
             workOrderId: newWorkOrder.id,
             storeName:
-              technician.store?.name || store?.name || undefined,
+              vendor.store?.name || store?.name || undefined,
             title: newWorkOrder.title,
             description: newWorkOrder.description || undefined,
             dueDate: dueDateString,
@@ -393,6 +393,65 @@ export async function POST(request: Request) {
       } catch (error) {
         console.error(
           "[workorders] Failed to send work order assignment email on create",
+          error
+        );
+      }
+    }
+
+    // Notify admins for the store (and any MASTER_ADMIN) about new work orders
+    try {
+      const admins = await prisma.user.findMany({
+        where: {
+          OR: [
+            { role: "MASTER_ADMIN" },
+            ...(finalStoreId
+              ? [{ role: { in: ["STORE_ADMIN", "ADMIN"] }, storeId: finalStoreId }]
+              : []),
+          ],
+        },
+        select: { email: true },
+      });
+
+      if (admins.length) {
+        await sendEmail({
+          to: admins.map((a) => a.email).filter(Boolean),
+          subject: `New Work Order Created (#${newWorkOrder.id})`,
+          html: `<p>A new work order has been created.</p>
+<p><strong>Title:</strong> ${newWorkOrder.title}</p>
+<p><strong>Priority:</strong> ${newWorkOrder.priority}</p>
+<p><strong>Status:</strong> ${newWorkOrder.status}</p>`,
+        });
+      }
+    } catch (error) {
+      console.error(
+        "[workorders POST] Failed to send admin notification email on create",
+        error
+      );
+    }
+
+    // Notify creator (USER) that their work order was created
+    if (newWorkOrder.createdById) {
+      try {
+        const creator = await prisma.user.findUnique({
+          where: { id: newWorkOrder.createdById },
+          select: {
+            email: true,
+            role: true,
+          },
+        });
+
+        if (creator?.email && creator.role === "USER") {
+          await sendWorkOrderUpdateEmail({
+            userEmail: creator.email,
+            workOrderId: newWorkOrder.id,
+            workOrderTitle: newWorkOrder.title,
+            updateMessage: "Your work order has been created.",
+            status: newWorkOrder.status,
+          });
+        }
+      } catch (error) {
+        console.error(
+          "[workorders POST] Failed to send work order creation email to user",
           error
         );
       }

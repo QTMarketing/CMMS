@@ -43,9 +43,10 @@ model Asset {
   schedules  PreventiveSchedule[]
   requests   Request[]
   transfers  Transfer[]
+  purchaseOrders PurchaseOrder[] @relation("AssetPurchaseOrders")
 }
 
-model Technician {
+model Vendor {
   id     String  @id
   name   String
   email  String
@@ -53,12 +54,13 @@ model Technician {
   active Boolean @default(true)
   status String  @default("offline") // "offline" | "online" | "work_assigned"
 
-  // Multi-store: optional store this technician belongs to.
+  // Multi-store: optional store this vendor belongs to.
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
 
-  workOrders WorkOrder[] @relation("TechnicianWorkOrders")
-  users      User[]      @relation("UserTechnician")
+  workOrders     WorkOrder[]     @relation("VendorWorkOrders")
+  users          User[]          @relation("UserVendor")
+  purchaseOrders PurchaseOrder[] @relation("VendorPurchaseOrders")
 }
 
 model WorkOrder {
@@ -87,7 +89,7 @@ model WorkOrder {
   asset   Asset?  @relation(fields: [assetId], references: [id])
 
   assignedToId String?
-  assignedTo   Technician? @relation("TechnicianWorkOrders", fields: [assignedToId], references: [id])
+  assignedTo   Vendor? @relation("VendorWorkOrders", fields: [assignedToId], references: [id])
 
   // Track who created the work order (for USER role notifications)
   createdById String?
@@ -117,7 +119,45 @@ model InventoryItem {
   // Multi-store: optional store that owns this inventory item.
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
-  transfers Transfer[]
+  transfers      Transfer[]
+  purchaseItems  PurchaseOrderItem[]
+}
+
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  poNumber    Int      // Sequential per store, assigned in API
+  status      String   // "Draft" | "Pending Approval" | "Approved" | "Ordered" | "Received" | "Cancelled"
+  orderDate   DateTime @default(now())
+  expectedDate DateTime?
+  notes       String?
+
+  storeId String
+  store   Store   @relation(fields: [storeId], references: [id])
+
+  vendorId String?
+  vendor   Vendor? @relation("VendorPurchaseOrders", fields: [vendorId], references: [id])
+
+  // Optional link to a specific asset
+  assetId String?
+  asset   Asset?  @relation("AssetPurchaseOrders", fields: [assetId], references: [id])
+
+  items     PurchaseOrderItem[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PurchaseOrderItem {
+  id             String   @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+
+  description    String
+  quantity       Int
+  unitPrice      Float
+  totalPrice     Float
 }
 
 model PreventiveSchedule {
@@ -145,8 +185,8 @@ model User {
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
 
-  technicianId String?
-  technician   Technician? @relation("UserTechnician", fields: [technicianId], references: [id])
+  vendorId String?
+  vendor   Vendor? @relation("UserVendor", fields: [vendorId], references: [id])
   accounts     Account[]
   sessions     Session[]
   createdWorkOrders WorkOrder[] @relation("WorkOrderCreator")
@@ -204,7 +244,7 @@ model Store {
   createdAt DateTime @default(now())
 
   users          User[]
-  technicians    Technician[]
+  vendors        Vendor[]
   assets         Asset[]
   workOrders     WorkOrder[]
   requests       Request[]
@@ -212,6 +252,7 @@ model Store {
   inventoryItems InventoryItem[]
   transfersFrom  Transfer[] @relation("TransferFromStore")
   transfersTo    Transfer[] @relation("TransferToStore")
+  purchaseOrders PurchaseOrder[]
 }
 
 // Auth.js / NextAuth supporting models

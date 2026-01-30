@@ -19,7 +19,12 @@ type StoreOption = {
 
 const statusOptions = ["Active", "Down", "Retired"] as const;
 
-export default function AddAssetDrawer() {
+interface AddAssetDrawerProps {
+  defaultStoreId?: string;
+  onSuccess?: () => void;
+}
+
+export default function AddAssetDrawer({ defaultStoreId, onSuccess }: AddAssetDrawerProps = {}) {
   const router = useRouter();
   const { data: session } = useSession();
   const role = (session?.user as any)?.role as string | undefined;
@@ -33,7 +38,7 @@ export default function AddAssetDrawer() {
   const [status, setStatus] =
     useState<(typeof statusOptions)[number]>("Active");
   const [stores, setStores] = useState<StoreOption[]>([]);
-  const [storeId, setStoreId] = useState<string>("");
+  const [storeId, setStoreId] = useState<string>(defaultStoreId || "");
   const [loading, setLoading] = useState(false);
   const [loadingStores, setLoadingStores] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,9 +51,6 @@ export default function AddAssetDrawer() {
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [category, setCategory] = useState("");
-  const [toolCheckOut, setToolCheckOut] = useState<string>("0");
-  const [checkOutRequiresApproval, setCheckOutRequiresApproval] = useState<string>("0");
-  const [defaultWOTemplate, setDefaultWOTemplate] = useState<string>("");
   const [parentAssets, setParentAssets] = useState<any[]>([]);
 
   const canCreate = isAdminLike(role);
@@ -74,16 +76,40 @@ export default function AddAssetDrawer() {
   }, [open, isMaster, stores.length, loadingStores]);
 
   useEffect(() => {
-    if (isMaster) return; // master selects explicitly
-    if (userStoreId) {
+    if (defaultStoreId) {
+      setStoreId(defaultStoreId);
+    } else if (isMaster) {
+      // master selects explicitly - don't auto-set
+    } else if (userStoreId) {
       setStoreId(userStoreId);
     }
-  }, [isMaster, userStoreId]);
+  }, [isMaster, userStoreId, defaultStoreId]);
 
-  // Load parent assets for dropdown
+  // Reset storeId when drawer opens/closes if defaultStoreId is provided
+  useEffect(() => {
+    if (open && defaultStoreId) {
+      setStoreId(defaultStoreId);
+    }
+  }, [open, defaultStoreId]);
+
+  // Effective store for this drawer (used to scope parent assets)
+  const effectiveStoreId = isMaster ? storeId || defaultStoreId || null : (defaultStoreId || userStoreId);
+
+  // Load parent assets for dropdown, scoped to the current store
   useEffect(() => {
     if (!open) return;
-    fetch("/api/assets")
+
+    // For master admin, require a store selection before loading parent assets
+    if (isMaster && !effectiveStoreId) {
+      setParentAssets([]);
+      return;
+    }
+
+    const url = effectiveStoreId
+      ? `/api/assets?storeId=${effectiveStoreId}`
+      : "/api/assets";
+
+    fetch(url)
       .then((res) => res.json())
       .then((data) => {
         const assets = Array.isArray(data) ? data : [];
@@ -92,7 +118,7 @@ export default function AddAssetDrawer() {
       .catch(() => {
         // Ignore errors
       });
-  }, [open]);
+  }, [open, effectiveStoreId, isMaster]);
 
   // Update parent asset name when parent asset is selected
   useEffect(() => {
@@ -117,6 +143,16 @@ export default function AddAssetDrawer() {
     [stores]
   );
 
+  // Filter parent assets by location so that once a location is chosen,
+  // only assets from the same location are shown (within the same store).
+  const filteredParentAssets = useMemo(() => {
+    if (!location.trim()) return parentAssets;
+    const loc = location.trim().toLowerCase();
+    return parentAssets.filter((a) =>
+      (a.location || "").toLowerCase() === loc
+    );
+  }, [parentAssets, location]);
+
   function resetForm() {
     setName("");
     setLocation("");
@@ -128,11 +164,11 @@ export default function AddAssetDrawer() {
     setMake("");
     setModel("");
     setCategory("");
-    setToolCheckOut("0");
-    setCheckOutRequiresApproval("0");
-    setDefaultWOTemplate("");
-    if (isMaster) {
+    // Preserve defaultStoreId if provided, otherwise reset
+    if (isMaster && !defaultStoreId) {
       setStoreId("");
+    } else if (defaultStoreId) {
+      setStoreId(defaultStoreId);
     }
     setError(null);
   }
@@ -183,9 +219,6 @@ export default function AddAssetDrawer() {
           make: make.trim() || undefined,
           model: model.trim() || undefined,
           category: category.trim() || undefined,
-          toolCheckOut: parseInt(toolCheckOut, 10) || 0,
-          checkOutRequiresApproval: parseInt(checkOutRequiresApproval, 10) || 0,
-          defaultWOTemplate: defaultWOTemplate.trim() ? parseInt(defaultWOTemplate.trim(), 10) : undefined,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -202,9 +235,13 @@ export default function AddAssetDrawer() {
 
       resetForm();
       setOpen(false);
-      startTransition(() => {
-        router.refresh();
-      });
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        startTransition(() => {
+          router.refresh();
+        });
+      }
     } catch {
       setError("Unexpected error while creating asset.");
     } finally {
@@ -299,7 +336,7 @@ export default function AddAssetDrawer() {
               value={assetId}
               onChange={(e) => setAssetId(e.target.value)}
               className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="Optional numeric asset ID"
+              placeholder="Leave blank to auto-assign"
             />
           </div>
 
@@ -313,7 +350,7 @@ export default function AddAssetDrawer() {
               onChange={(e) => setParentAssetId(e.target.value)}
             >
               <option value="">None (Top-level asset)</option>
-              {parentAssets.map((asset) => (
+              {filteredParentAssets.map((asset) => (
                 <option key={asset.id} value={asset.id}>
                   {asset.assetId ? `#${asset.assetId} - ` : ""}{asset.name}
                 </option>
@@ -390,47 +427,6 @@ export default function AddAssetDrawer() {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Tool Check-Out (Number)
-            </label>
-            <input
-              type="number"
-              value={toolCheckOut}
-              onChange={(e) => setToolCheckOut(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              min="0"
-              placeholder="0"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Check-Out Requires Approval
-            </label>
-            <select
-              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              value={checkOutRequiresApproval}
-              onChange={(e) => setCheckOutRequiresApproval(e.target.value)}
-            >
-              <option value="0">No Approval Required</option>
-              <option value="1">Requires Approval</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Default WO Template (Number)
-            </label>
-            <input
-              type="number"
-              value={defaultWOTemplate}
-              onChange={(e) => setDefaultWOTemplate(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="Optional template ID"
-            />
-          </div>
-
           {isMaster && (
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -439,7 +435,11 @@ export default function AddAssetDrawer() {
               <select
                 className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={storeId}
-                onChange={(e) => setStoreId(e.target.value)}
+                onChange={(e) => {
+                  setStoreId(e.target.value);
+                  // Clear any selected parent asset when changing store
+                  setParentAssetId("");
+                }}
                 required
               >
                 <option value="">

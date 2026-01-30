@@ -19,20 +19,20 @@ export async function PATCH(
 
   const user = session.user as any;
   const role = user?.role;
-  const technicianId = user?.technicianId;
+  const vendorId = user?.vendorId;
 
-  // Only technicians can update their own status
-  if (role !== "TECHNICIAN") {
+  // Only vendors can update their own status
+  if (role !== "VENDOR") {
     return NextResponse.json(
-      { success: false, error: "Only technicians can update their status" },
+      { success: false, error: "Only vendors can update their status" },
       { status: 403 }
     );
   }
 
   const { id } = await params;
 
-  // Technicians can only update their own status
-  if (id !== technicianId) {
+  // Vendors can only update their own status
+  if (id !== vendorId) {
     return NextResponse.json(
       { success: false, error: "You can only update your own status" },
       { status: 403 }
@@ -68,8 +68,8 @@ export async function PATCH(
       );
     }
 
-    // Check if technician exists first
-    const existingTechnician = await prisma.technician.findUnique({
+    // Check if vendor exists first
+    const existingVendor = await prisma.vendor.findUnique({
       where: { id },
       select: {
         id: true,
@@ -77,17 +77,17 @@ export async function PATCH(
       },
     });
 
-    if (!existingTechnician) {
+    if (!existingVendor) {
       return NextResponse.json(
-        { success: false, error: "Technician not found" },
+        { success: false, error: "Vendor not found" },
         { status: 404 }
       );
     }
 
-    // Update technician status
-    let updatedTechnician;
+    // Update vendor status
+    let updatedVendor;
     try {
-      updatedTechnician = await prisma.technician.update({
+      updatedVendor = await prisma.vendor.update({
         where: { id },
         data: { status },
         select: {
@@ -116,9 +116,9 @@ export async function PATCH(
       throw updateError;
     }
 
-    return NextResponse.json({ success: true, data: updatedTechnician });
+    return NextResponse.json({ success: true, data: updatedVendor });
   } catch (error: any) {
-    console.error("Error updating technician status:", error);
+    console.error("Error updating vendor status:", error);
     console.error("Error details:", {
       code: error?.code,
       message: error?.message,
@@ -127,9 +127,9 @@ export async function PATCH(
     });
     
     // Provide more specific error messages
-    let errorMessage = "Failed to update technician status";
+    let errorMessage = "Failed to update vendor status";
     if (error?.code === "P2025") {
-      errorMessage = "Technician not found";
+      errorMessage = "Vendor not found";
     } else if (error?.code === "P2002") {
       errorMessage = "A record with this value already exists";
     } else if (error?.message) {

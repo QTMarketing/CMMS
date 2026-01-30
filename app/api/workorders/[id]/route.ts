@@ -4,7 +4,11 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike, isTechnician as isTechnicianRole } from "@/lib/roles";
-import { sendWorkOrderAssignedEmail, sendWorkOrderUpdateEmail } from "@/lib/email";
+import {
+  sendEmail,
+  sendWorkOrderAssignedEmail,
+  sendWorkOrderUpdateEmail,
+} from "@/lib/email";
 
 const VALID_STATUSES = ["Open", "In Progress", "Pending Review", "Completed", "Cancelled"] as const;
 type Status = (typeof VALID_STATUSES)[number];
@@ -349,6 +353,50 @@ export async function PATCH(
       },
     },
   });
+
+  // Notify admins when a work order is completed or otherwise updated
+  if (statusChanged || technicianChanged) {
+    try {
+      const storeId = updated.storeId;
+      const admins = await prisma.user.findMany({
+        where: {
+          OR: [
+            { role: "MASTER_ADMIN" },
+            ...(storeId
+              ? [{ role: { in: ["STORE_ADMIN", "ADMIN"] }, storeId }]
+              : []),
+          ],
+        },
+        select: { email: true },
+      });
+
+      if (admins.length) {
+        const subject = statusChanged
+          ? `Work Order Status Updated (#${updated.id})`
+          : `Work Order Updated (#${updated.id})`;
+
+        let body = `<p>Work order <strong>#${updated.id}</strong> has been updated.</p>`;
+        body += `<p><strong>Title:</strong> ${updated.title}</p>`;
+        if (statusChanged) {
+          body += `<p><strong>Status:</strong> ${updated.status}</p>`;
+        }
+        if (technicianChanged && updated.assignedToId) {
+          body += `<p><strong>Assigned To:</strong> ${updated.assignedToId}</p>`;
+        }
+
+        await sendEmail({
+          to: admins.map((a) => a.email).filter(Boolean),
+          subject,
+          html: body,
+        });
+      }
+    } catch (error) {
+      console.error(
+        "[workorders PATCH] Failed to send admin notification email on update",
+        error
+      );
+    }
+  }
 
   return NextResponse.json({ success: true, data: updatedWithRelations });
 }

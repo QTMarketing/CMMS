@@ -54,8 +54,22 @@ export default function CreateWorkOrderForm({
     }
   }, [isMasterAdmin, currentStoreId]);
 
+  // Determine the effective storeId for filtering assets
+  const effectiveStoreId = isMasterAdmin ? storeId : currentStoreId;
+
   useEffect(() => {
-    fetch("/api/assets", { cache: "no-store" })
+    // Only fetch assets if we have a storeId (for non-master admins) or if master admin has selected a store
+    if (!effectiveStoreId && isMasterAdmin) {
+      setAssets([]);
+      return;
+    }
+
+    // Build API URL with storeId filter
+    const assetsUrl = effectiveStoreId 
+      ? `/api/assets?storeId=${effectiveStoreId}`
+      : "/api/assets";
+
+    fetch(assetsUrl, { cache: "no-store" })
       .then((res) => {
         if (!res.ok) {
           console.error("Failed to fetch assets:", res.status);
@@ -63,33 +77,52 @@ export default function CreateWorkOrderForm({
         }
         return res.json();
       })
-      .then((data) =>
-        setAssets(Array.isArray(data) ? data : data.data || [])
-      )
+      .then((data) => {
+        const assetsList = Array.isArray(data) ? data : data.data || [];
+        // Additional client-side filter as backup
+        const filtered = effectiveStoreId
+          ? assetsList.filter((a: any) => a.storeId === effectiveStoreId)
+          : assetsList;
+        setAssets(filtered);
+        // Clear selected asset if it's not in the filtered list
+        if (assetId && !filtered.find((a: any) => a.id === assetId)) {
+          setAssetId("");
+        }
+      })
       .catch((err) => {
         console.error("Error fetching assets:", err);
         setAssets([]);
       });
 
-    // Only fetch technicians if not USER role (USER can't assign)
+    // Only fetch vendors if not USER role (USER can't assign)
     if (!isUser) {
-    fetch("/api/technicians", { cache: "no-store" })
-      .then((res) => {
-        if (!res.ok) {
-          console.error("Failed to fetch technicians:", res.status);
-          return [];
-        }
-        return res.json();
-      })
-      .then((data) =>
-        setTechnicians(Array.isArray(data) ? data : data.data || [])
-      )
-      .catch((err) => {
-        console.error("Error fetching technicians:", err);
-        setTechnicians([]);
-      });
+      // Also filter vendors by store
+      const vendorsUrl = effectiveStoreId
+        ? `/api/technicians?storeId=${effectiveStoreId}`
+        : "/api/technicians";
+      
+      fetch(vendorsUrl, { cache: "no-store" })
+        .then((res) => {
+          if (!res.ok) {
+            console.error("Failed to fetch vendors:", res.status);
+            return [];
+          }
+          return res.json();
+        })
+        .then((data) => {
+          const vendorsList = Array.isArray(data) ? data : data.data || [];
+          // Additional client-side filter as backup
+          const filtered = effectiveStoreId
+            ? vendorsList.filter((v: any) => v.storeId === effectiveStoreId)
+            : vendorsList;
+          setTechnicians(filtered);
+        })
+        .catch((err) => {
+          console.error("Error fetching vendors:", err);
+          setTechnicians([]);
+        });
     }
-  }, [isUser]);
+  }, [isUser, effectiveStoreId, isMasterAdmin]);
 
   async function handleFileUpload(file: File): Promise<string> {
     const formData = new FormData();
@@ -227,7 +260,10 @@ export default function CreateWorkOrderForm({
           <select
             className="w-full border rounded px-3 py-1"
             value={storeId}
-            onChange={(e) => setStoreId(e.target.value)}
+            onChange={(e) => {
+              setStoreId(e.target.value);
+              setAssetId(""); // Clear selected asset when store changes
+            }}
             required
           >
             <option value="">Select store…</option>

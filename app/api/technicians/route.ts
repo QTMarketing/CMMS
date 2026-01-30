@@ -1,13 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { isAdminLike, isMasterAdmin, isTechnician } from "@/lib/roles";
+import { isAdminLike, isMasterAdmin, isVendor } from "@/lib/roles";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
@@ -24,8 +24,14 @@ export async function GET() {
       | null;
 
     const where: any = {};
+    const urlStoreId = req.nextUrl.searchParams.get("storeId") || null;
 
-    if (!canSeeAllStores(role)) {
+    if (canSeeAllStores(role)) {
+      // MASTER_ADMIN can filter by storeId from URL if provided
+      if (urlStoreId) {
+        where.storeId = urlStoreId;
+      }
+    } else {
       const scopedStoreId = getScopedStoreId(role, userStoreId);
       if (scopedStoreId) {
         where.storeId = scopedStoreId;
@@ -34,15 +40,15 @@ export async function GET() {
       }
     }
 
-    const items = await prisma.technician.findMany({
+    const items = await prisma.vendor.findMany({
       where,
       orderBy: { name: "asc" },
     });
     return NextResponse.json(items);
   } catch (error) {
-    console.error("Error fetching technicians:", error);
+    console.error("Error fetching vendors:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to fetch technicians" },
+      { success: false, error: "Failed to fetch vendors" },
       { status: 500 }
     );
   }
@@ -64,8 +70,8 @@ export async function POST(request: Request) {
       | string
       | null;
 
-    // Only admin-like roles may create technicians; TECHNICIAN explicitly forbidden.
-    if (!isAdminLike(role) || isTechnician(role)) {
+    // Only admin-like roles may create vendors; VENDOR explicitly forbidden.
+    if (!isAdminLike(role) || isVendor(role)) {
       return NextResponse.json(
         { success: false, error: "Forbidden" },
         { status: 403 }
@@ -111,7 +117,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if email is already in use (either as technician or user)
+    // Check if email is already in use (either as vendor or user)
     const existingUser = await prisma.user.findUnique({
       where: { email: email.trim() },
     });
@@ -136,14 +142,14 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             success: false,
-            error: "storeId is required for technicians.",
+            error: "storeId is required for vendors.",
           },
           { status: 400 }
         );
       }
       storeId = bodyStoreId;
     } else {
-      // STORE_ADMIN: force technician into their own store,
+      // STORE_ADMIN: force vendor into their own store,
       // ignoring any storeId passed in the body.
       storeId = userStoreId;
       if (!storeId) {
@@ -168,11 +174,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create technician first
-    const technicianId = crypto.randomUUID();
-    const newTech = await prisma.technician.create({
+    // Create vendor first
+    const vendorId = crypto.randomUUID();
+    const newVendor = await prisma.vendor.create({
       data: {
-        id: technicianId,
+        id: vendorId,
         name: name.trim(),
         email: email.trim(),
         phone: phone && typeof phone === "string" ? phone.trim() : null,
@@ -187,20 +193,20 @@ export async function POST(request: Request) {
       data: {
         email: email.trim(),
         password: hashedPassword,
-        role: "TECHNICIAN",
+        role: "VENDOR",
         storeId: store.id,
-        technicianId: technicianId,
+        vendorId: vendorId,
       },
     });
 
     return NextResponse.json(
-      { success: true, data: newTech },
+      { success: true, data: newVendor },
       { status: 201 }
     );
   } catch (err) {
-    console.error("Error creating technician:", err);
+    console.error("Error creating vendor:", err);
     return NextResponse.json(
-      { success: false, error: "Failed to create technician." },
+      { success: false, error: "Failed to create vendor." },
       { status: 500 }
     );
   }

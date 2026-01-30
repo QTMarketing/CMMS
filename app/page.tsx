@@ -366,14 +366,14 @@ export default async function DashboardPage() {
         </h2>
       </div>
 
-      {/* KPI pill strip (Total Assets, Pending, Completed, Scheduled) */}
+      {/* KPI pill strip (Open Work Orders, Pending, Completed, Scheduled) */}
       <div className="bg-white rounded-full shadow-sm flex flex-col items-stretch gap-4 p-4 md:flex-row md:items-center md:justify-around">
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-            <span className="text-xs font-semibold">A</span>
+            <span className="text-xs font-semibold">O</span>
           </span>
-          <span className="text-lg font-bold">{assets.length}</span>
-          <span className="text-sm text-slate-500">Total Assets</span>
+          <span className="text-lg font-bold">{kpiOpen}</span>
+          <span className="text-sm text-slate-500">Open Work Orders</span>
         </div>
 
         <div className="hidden h-8 w-px bg-slate-200 md:block" />

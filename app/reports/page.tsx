@@ -192,7 +192,7 @@ export default function ReportsPage() {
           Store Reports
         </h1>
         <p className="text-sm text-slate-600">
-          Generate and download reports for individual stores. Reports include work orders, assets, preventive maintenance schedules, and technician information.
+          Generate and download reports for individual stores. Reports include work orders, assets, preventive maintenance schedules, and vendor information.
         </p>
       </div>
 

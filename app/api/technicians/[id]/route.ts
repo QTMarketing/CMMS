@@ -19,7 +19,7 @@ export async function GET(
 
   const { id } = await params;
 
-  const technician = await prisma.technician.findUnique({
+  const vendor = await prisma.vendor.findUnique({
     where: { id },
     select: {
       id: true,
@@ -31,12 +31,12 @@ export async function GET(
     },
   });
 
-  if (!technician) {
+  if (!vendor) {
     return NextResponse.json(
-      { success: false, error: "Technician not found." },
+      { success: false, error: "Vendor not found." },
       { status: 404 }
     );
   }
 
-  return NextResponse.json({ success: true, data: technician });
+  return NextResponse.json({ success: true, data: vendor });
 }

@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const end = endDate ? new Date(endDate) : new Date();
 
     // Fetch data for the store
-    const [workOrders, assets, pmSchedules, technicians] = await Promise.all([
+    const [workOrders, assets, pmSchedules, vendors] = await Promise.all([
       prisma.workOrder.findMany({
         where: {
           storeId,
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         },
         orderBy: { nextDueDate: "asc" },
       }),
-      prisma.technician.findMany({
+      prisma.vendor.findMany({
         where: { storeId },
         orderBy: { name: "asc" },
       }),
@@ -113,8 +113,8 @@ export async function POST(req: NextRequest) {
         activeAssets: assets.filter((a) => a.status === "Active").length,
         totalPMSchedules: pmSchedules.length,
         activePMSchedules: pmSchedules.filter((pm) => pm.active).length,
-        totalTechnicians: technicians.length,
-        activeTechnicians: technicians.filter((t) => t.active).length,
+        totalVendors: vendors.length,
+        activeVendors: vendors.filter((v) => v.active).length,
       },
       workOrders: workOrders.map((wo) => ({
         id: wo.id,
@@ -144,13 +144,13 @@ export async function POST(req: NextRequest) {
         nextDueDate: pm.nextDueDate.toISOString(),
         active: pm.active,
       })),
-      technicians: technicians.map((t) => ({
-        id: t.id,
-        name: t.name,
-        email: t.email,
-        phone: t.phone,
-        active: t.active,
-        status: t.status,
+      vendors: vendors.map((v) => ({
+        id: v.id,
+        name: v.name,
+        email: v.email,
+        phone: v.phone,
+        active: v.active,
+        status: v.status,
       })),
       generatedAt: new Date().toISOString(),
     };

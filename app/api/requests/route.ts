@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike, canCreateRequests } from "@/lib/roles";
 import { getScopedStoreId, canSeeAllStores } from "@/lib/storeAccess";
+import { sendEmail, sendRequestSubmittedEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   try {
@@ -153,6 +154,49 @@ export async function POST(req: NextRequest) {
         storeId: storeId,
       },
     });
+
+    // Notify admins about new request
+    try {
+      const admins = await prisma.user.findMany({
+        where: {
+          OR: [
+            { role: "MASTER_ADMIN" },
+            ...(storeId
+              ? [{ role: { in: ["STORE_ADMIN", "ADMIN"] }, storeId }]
+              : []),
+          ],
+        },
+        select: { email: true },
+      });
+
+      const store = storeId
+        ? await prisma.store.findUnique({
+            where: { id: storeId },
+            select: { name: true },
+          })
+        : null;
+
+      if (admins.length) {
+        const emails = admins.map((a) => a.email).filter(Boolean);
+        // Use specialized helper for a simple admin notification
+        await Promise.all(
+          emails.map((email) =>
+            sendRequestSubmittedEmail({
+              storeAdminEmail: email,
+              requesterName: userEmail || undefined,
+              storeName: store?.name,
+              requestId: newRequest.id,
+              summary: newRequest.title,
+            })
+          )
+        );
+      }
+    } catch (error) {
+      console.error(
+        "[requests POST] Failed to send admin notification email on request create",
+        error
+      );
+    }
 
     return NextResponse.json(
       { success: true, data: newRequest },

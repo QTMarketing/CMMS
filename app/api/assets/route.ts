@@ -272,10 +272,26 @@ export async function POST(request: Request) {
       }
     }
 
+    // Determine final numeric assetId:
+    // - If a numeric assetId was provided, use it
+    // - Otherwise, auto-assign the next number for this store
+    let finalAssetId: number | null = null;
+    if (typeof assetId === "number") {
+      finalAssetId = assetId;
+    } else {
+      const lastAssetWithId = await prisma.asset.findFirst({
+        where: { storeId, assetId: { not: null } },
+        orderBy: { assetId: "desc" },
+        select: { assetId: true },
+      });
+      const currentMax = lastAssetWithId?.assetId ?? 0;
+      finalAssetId = currentMax + 1;
+    }
+
     const asset = await prisma.asset.create({
       data: {
         id: crypto.randomUUID(),
-        assetId: assetId && typeof assetId === "number" ? assetId : null,
+        assetId: finalAssetId,
         name: name.trim(),
         location:
           typeof location === "string" && location.trim().length > 0
