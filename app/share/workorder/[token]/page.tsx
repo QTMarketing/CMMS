@@ -33,7 +33,7 @@ export default async function SharedWorkOrderPage({ params }: PageParams) {
   }
 
   // Build technician map for the detail component
-  const technicians = await prisma.technician.findMany({
+  const technicians = await prisma.vendor.findMany({
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

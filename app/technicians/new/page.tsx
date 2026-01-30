@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { isAdminLike, isTechnician } from "@/lib/roles";
+import { isAdminLike, isVendor } from "@/lib/roles";
 import TechnicianForm from "./components/TechnicianForm";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function NewTechnicianPage() {
   const role = (session.user as any)?.role as string | undefined;
 
   // Only admin-like roles can access this page.
-  if (!isAdminLike(role) || isTechnician(role)) {
+  if (!isAdminLike(role) || isVendor(role)) {
     redirect("/technicians");
   }
 

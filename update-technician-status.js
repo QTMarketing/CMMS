@@ -5,7 +5,7 @@ async function main() {
   console.log("Updating existing technicians with default status...");
   
   // Get all technicians
-  const technicians = await prisma.technician.findMany({
+  const technicians = await prisma.vendor.findMany({
     select: { id: true, status: true }
   });
   
@@ -15,7 +15,7 @@ async function main() {
   let updated = 0;
   for (const tech of technicians) {
     if (!tech.status || !["offline", "online", "work_assigned"].includes(tech.status)) {
-      await prisma.technician.update({
+      await prisma.vendor.update({
         where: { id: tech.id },
         data: { status: "offline" }
       });

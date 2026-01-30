@@ -8,7 +8,7 @@ type UserRow = {
   id: string;
   email: string;
   role: string;
-  technician?: {
+  vendor?: {
     id: string;
     name: string;
   } | null;
@@ -147,7 +147,7 @@ export default function UsersTableClient({ initialUsers }: Props) {
         </div>
       )}
       <Table
-        headers={["Name", "Email", "Role", "Linked Technician", "Actions"]}
+        headers={["Name", "Email", "Role", "Linked Vendor", "Actions"]}
       >
         {users.length === 0 ? (
           <tr>
@@ -161,9 +161,9 @@ export default function UsersTableClient({ initialUsers }: Props) {
         ) : (
           users.map((user) => {
             const displayName =
-              user.technician?.name ?? user.email ?? "Unknown user";
-            const linkedTechLabel = user.technician
-              ? `${user.technician.name}`
+              user.vendor?.name ?? user.email ?? "Unknown user";
+            const linkedTechLabel = user.vendor
+              ? `${user.vendor.name}`
               : "—";
 
             return (

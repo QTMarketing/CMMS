@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { isAdminLike, isTechnician as isTechnicianRole } from "@/lib/roles";
+import { isAdminLike, isVendor as isTechnicianRole } from "@/lib/roles";
 import {
   sendEmail,
   sendWorkOrderAssignedEmail,
@@ -40,7 +40,7 @@ export async function PATCH(
 
   const sessionUser = session.user as any;
   const sessionRole = sessionUser?.role as string | undefined;
-  const sessionTechnicianId = (sessionUser?.technicianId ?? null) as
+  const sessionTechnicianId = (sessionUser?.vendorId ?? null) as
     | string
     | null;
   const sessionStoreId = (sessionUser?.storeId ?? null) as string | null;

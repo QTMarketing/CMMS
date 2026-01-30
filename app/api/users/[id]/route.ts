@@ -88,7 +88,7 @@ export async function PATCH(
         id: updated.id,
         email: updated.email,
         role: updated.role,
-        technicianId: updated.technicianId,
+        vendorId: updated.vendorId,
       },
     });
   } catch (err) {

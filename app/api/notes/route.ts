@@ -70,9 +70,9 @@ export async function POST(req: NextRequest) {
     // Check access: USER and TECHNICIAN can only comment on work orders they have access to
     const role = (session.user as any)?.role as string | undefined;
     const userStoreId = ((session.user as any)?.storeId ?? null) as string | null;
-    const technicianId = ((session.user as any)?.technicianId ?? null) as string | null;
+    const vendorId = ((session.user as any)?.vendorId ?? null) as string | null;
 
-    if (role === "USER" || role === "TECHNICIAN") {
+    if (role === "USER" || role === "VENDOR") {
       // USER: can only comment on work orders from their store
       if (role === "USER" && workOrder.storeId !== userStoreId) {
         return NextResponse.json(
@@ -80,8 +80,8 @@ export async function POST(req: NextRequest) {
           { status: 403 }
         );
       }
-      // TECHNICIAN: can only comment on work orders assigned to them
-      if (role === "TECHNICIAN" && workOrder.assignedToId !== technicianId) {
+      // VENDOR: can only comment on work orders assigned to them
+      if (role === "VENDOR" && workOrder.assignedToId !== vendorId) {
         return NextResponse.json(
           { success: false, error: "Forbidden" },
           { status: 403 }

@@ -226,7 +226,6 @@ export default function AddPurchaseOrderDrawer({
     e.preventDefault();
     const validationError = validate();
     if (validationError) {
-      stopPropagation;
       setError(validationError);
       return;
     }

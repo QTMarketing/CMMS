@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
       include: {
-        technician: {
+        vendor: {
           select: { id: true, name: true, active: true },
         },
         store: {

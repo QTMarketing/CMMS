@@ -48,7 +48,7 @@ export default async function WorkOrderDetailPage({ params }: PageParams) {
   }
 
   // Build technician map so the detail component can resolve names
-  const technicians = await prisma.technician.findMany({
+  const technicians = await prisma.vendor.findMany({
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

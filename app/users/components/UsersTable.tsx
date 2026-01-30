@@ -7,7 +7,7 @@ export default async function UsersTable() {
   const users = await prisma.user.findMany({
     orderBy: { email: "asc" },
     include: {
-      technician: true,
+      vendor: true,
     },
   });
 
@@ -15,10 +15,10 @@ export default async function UsersTable() {
     id: u.id,
     email: u.email,
     role: u.role,
-    technician: u.technician
+    vendor: u.vendor
       ? {
-          id: u.technician.id,
-          name: u.technician.name,
+          id: u.vendor.id,
+          name: u.vendor.name,
         }
       : null,
   }));

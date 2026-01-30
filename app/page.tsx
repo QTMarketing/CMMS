@@ -53,14 +53,14 @@ export default async function DashboardPage() {
   const user = session.user as any;
   const email = (user?.email as string) ?? "";
   const role = user?.role;
-  const technicianId = ((session.user as any)?.technicianId ?? null) as
+  const technicianId = ((session.user as any)?.vendorId ?? null) as
     | string
     | null;
   const userStoreId = ((session.user as any)?.storeId ?? null) as
     | string
     | null;
   const isAdmin = role === "ADMIN";
-  const isTechnician = role === "TECHNICIAN";
+  const isTechnician = role === "VENDOR";
   const isUser = role === "USER";
   const isStoreAdmin = role === "STORE_ADMIN";
 
@@ -70,19 +70,18 @@ export default async function DashboardPage() {
     redirect("/workorders");
   }
 
-  // Get technician name if technician
+  // Get vendor name if vendor
   let technicianName = "";
   if (isTechnician && technicianId) {
     try {
-    const technician = await prisma.technician.findUnique({
+    const vendor = await prisma.vendor.findUnique({
       where: { id: technicianId },
       select: { name: true },
     });
-    technicianName = technician?.name || "Technician";
+    technicianName = vendor?.name || "Vendor";
     } catch (error: any) {
-      console.error("Error fetching technician:", error);
-      // Fallback if database query fails
-      technicianName = "Technician";
+      console.error("Error fetching vendor:", error);
+      technicianName = "Vendor";
     }
   }
 

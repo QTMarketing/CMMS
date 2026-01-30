@@ -22,35 +22,35 @@ export async function POST(
 
     const { id: technicianId } = await params;
 
-    const technician = await prisma.technician.findUnique({
+    const vendor = await prisma.vendor.findUnique({
       where: { id: technicianId },
     });
 
-    if (!technician) {
+    if (!vendor) {
       return NextResponse.json(
-        { success: false, error: "Technician not found." },
+        { success: false, error: "Vendor not found." },
         { status: 404 }
       );
     }
 
-    if (!technician.storeId) {
+    if (!vendor.storeId) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "Technician does not have a store assigned. Please set a store before creating a login.",
+            "Vendor does not have a store assigned. Please set a store before creating a login.",
         },
         { status: 400 }
       );
     }
 
-    const existingUserForTech = await prisma.user.findFirst({
-      where: { technicianId },
+    const existingUserForVendor = await prisma.user.findFirst({
+      where: { vendorId: technicianId },
     });
 
-    if (existingUserForTech) {
+    if (existingUserForVendor) {
       return NextResponse.json(
-        { success: false, error: "Technician already has a login." },
+        { success: false, error: "Vendor already has a login." },
         { status: 400 }
       );
     }
@@ -108,10 +108,10 @@ export async function POST(
       data: {
         email: email.trim(),
         password: hashedPassword,
-        role: "TECHNICIAN",
-        technicianId,
-        // Align the user with the technician's store so store-based scoping works.
-        storeId: technician.storeId,
+        role: "VENDOR",
+        vendorId: technicianId,
+        // Align the user with the vendor's store so store-based scoping works.
+        storeId: vendor.storeId,
       },
     });
 
@@ -122,15 +122,15 @@ export async function POST(
           id: user.id,
           email: user.email,
           role: user.role,
-          technicianId: user.technicianId,
+          vendorId: user.vendorId,
         },
       },
       { status: 201 }
     );
   } catch (err) {
-    console.error("Error creating technician user:", err);
+    console.error("Error creating vendor user:", err);
     return NextResponse.json(
-      { success: false, error: "Failed to create technician login." },
+      { success: false, error: "Failed to create vendor login." },
       { status: 500 }
     );
   }

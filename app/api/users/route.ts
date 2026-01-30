@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
           id: user.id,
           email: user.email,
           role: user.role,
-          technicianId: user.technicianId,
+          vendorId: user.vendorId,
         },
       },
       { status: 201 }

@@ -16,11 +16,11 @@ async function testConnection() {
     
     // Test if Technician table exists and has status column
     try {
-      const techCount = await prisma.technician.count();
+      const techCount = await prisma.vendor.count();
       console.log(`✅ Technician table exists with ${techCount} records`);
       
       // Try to query status field
-      const tech = await prisma.technician.findFirst({
+      const tech = await prisma.vendor.findFirst({
         select: { id: true, name: true, status: true },
       });
       console.log('✅ Status column exists:', tech ? 'Yes' : 'No records to check');

@@ -7,7 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   isAdminLike,
-  isTechnician as isTechnicianRole,
+  isVendor as isTechnicianRole,
   isMasterAdmin,
 } from "@/lib/roles";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
@@ -16,7 +16,7 @@ import ToggleTechnicianActive from "./components/ToggleTechnicianActive";
 
 export const dynamic = "force-dynamic";
 
-type TechnicianWithWorkOrders = Prisma.TechnicianGetPayload<{
+type VendorWithWorkOrders = Prisma.VendorGetPayload<{
   include: {
     workOrders: true;
     users: true;
@@ -79,7 +79,7 @@ export default async function TechniciansPage({
     if (store) currentStoreName = store.name;
   }
 
-  const techWhere: Prisma.TechnicianWhereInput = {};
+  const techWhere: Prisma.VendorWhereInput = {};
 
   if (searchQuery) {
     techWhere.OR = [
@@ -89,7 +89,7 @@ export default async function TechniciansPage({
     ];
   }
 
-  const technicians = await prisma.technician.findMany({
+  const technicians = await prisma.vendor.findMany({
     where: techWhere,
     orderBy: { name: "asc" },
     include: {
@@ -218,7 +218,7 @@ export default async function TechniciansPage({
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {technicians.map((tech: TechnicianWithWorkOrders) => {
+                {technicians.map((tech: VendorWithWorkOrders) => {
                   const openCount = tech.workOrders.filter(
                     (wo) =>
                       wo.status !== "Completed" && wo.status !== "Cancelled"

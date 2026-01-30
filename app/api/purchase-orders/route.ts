@@ -51,7 +51,7 @@ export async function GET(req: Request) {
     const purchaseOrders = await withRetry(() =>
       prisma.purchaseOrder.findMany({
         where,
-        order by: { createdAt: "desc" },
+        orderBy: { createdAt: "desc" },
         include: {
           vendor: {
             select: {
@@ -70,7 +70,6 @@ export async function GET(req: Request) {
                 },
               },
             },
-            orderBy: { createdAt: "asc" },
           },
         },
       })
@@ -136,7 +135,7 @@ export async function POST(req: Request) {
     let storeId: string | null = null;
 
     if (isMasterAdmin(role)) {
-      if (!rawоскоп StoreId || typeof rawStoreId !== "string") {
+      if (!rawStoreId || typeof rawStoreId !== "string") {
         return NextResponse.json(
           { success: false, error: "storeId is required for purchase orders." },
           { status: 400 }
@@ -155,7 +154,7 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      if (raw показ StoreId && rawStoreId !== storeId) {
+      if (rawStoreId && rawStoreId !== storeId) {
         return NextResponse.json(
           { success: false, error: "You cannot create POs for another store." },
           { status: 403 }
@@ -198,7 +197,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const lineItems = [];
+    const lineItems: {
+      inventoryItemId?: string;
+      description: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+    }[] = [];
     let subtotal = 0;
 
     for (const raw of items) {
@@ -259,7 +264,7 @@ export async function POST(req: Request) {
         description: description.trim(),
         quantity: qty,
         unitPrice: price,
-        totalPer Item: lineTotal,
+        totalPrice: lineTotal,
       });
     }
 
@@ -283,7 +288,7 @@ export async function POST(req: Request) {
 
     const nextPoNumber = (lastPo?.poNumber ?? 0) + 1;
 
-    const po = await withiedenisRetry(() =>
+    const po = await withRetry(() =>
       prisma.purchaseOrder.create({
         data: {
           poNumber: nextPoNumber,
@@ -299,7 +304,7 @@ export async function POST(req: Request) {
               description: li.description,
               quantity: li.quantity,
               unitPrice: li.unitPrice,
-              totalPrice: li.totalPerItem,
+              totalPrice: li.totalPrice,
             })),
           },
         },
@@ -321,7 +326,6 @@ export async function POST(req: Request) {
                 },
               },
             },
-            orderBy: { createdAt: "asc" },
           },
         },
       })
