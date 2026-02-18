@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import TechnicianStatusToggle from "@/components/technicians/TechnicianStatusToggle";
@@ -24,6 +24,7 @@ export default function Sidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const role = (session?.user as any)?.role as string | undefined;
   const email = (session?.user as any)?.email as string | undefined;
@@ -32,6 +33,7 @@ export default function Sidebar({
   const isUser = role === "USER";
   const isStoreAdmin = role === "STORE_ADMIN";
   const [userName, setUserName] = useState<string>("");
+  const [categories, setCategories] = useState<{ id: string; name: string; color?: string | null }[]>([]);
 
   // Fetch technician name if user is a technician
   useEffect(() => {
@@ -75,6 +77,29 @@ export default function Sidebar({
       }
     }
   }, [isTechnician, technicianId, email, role]);
+
+  // Fetch categories for admin roles
+  useEffect(() => {
+    const isAdminLike = role === "MASTER_ADMIN" || role === "ADMIN" || role === "STORE_ADMIN";
+    if (isAdminLike && session) {
+      fetch("/api/store-categories", { cache: "no-store" })
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch categories");
+          return res.json();
+        })
+        .then((data) => {
+          if (data.success && data.data) {
+            setCategories(data.data);
+          }
+        })
+        .catch(() => {
+          // Silently fail - categories are optional
+        });
+    }
+  }, [role, session]);
+
+  // Get active category from URL
+  const activeCategoryId = searchParams?.get("category") || null;
 
   // Get role display name
   const getRoleDisplayName = () => {
@@ -187,6 +212,34 @@ export default function Sidebar({
                 >
                   <span>{item.name}</span>
                 </Link>
+                {/* Show categories as sub-items under Locations */}
+                {isLocations && categories.length > 0 && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    {categories.map((cat) => {
+                      const isCategoryActive = activeCategoryId === cat.id;
+                      return (
+                        <Link
+                          key={cat.id}
+                          href={`/stores?category=${cat.id}`}
+                          className={`flex items-center gap-2 px-4 py-1.5 text-xs font-medium rounded-lg transition ${
+                            isCategoryActive
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                              : "text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          }`}
+                          onClick={() => isMobile && onClose && onClose()}
+                        >
+                          {cat.color && (
+                            <span
+                              className="w-2 h-2 rounded-full"
+                              style={{ backgroundColor: cat.color }}
+                            />
+                          )}
+                          <span>{cat.name}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}

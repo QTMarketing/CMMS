@@ -10,10 +10,17 @@ import ManageCategoriesDrawer from "./components/ManageCategoriesDrawer";
 
 export const dynamic = "force-dynamic";
 
-export default async function StoresPage() {
+export default async function StoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string }>;
+}) {
   const session = await getServerSession(authOptions);
   const role = (session?.user as any)?.role;
   const userStoreId = ((session?.user as any)?.storeId ?? null) as string | null;
+  
+  const params = await searchParams;
+  const selectedCategoryId = params.category || null;
 
   // Allow MASTER_ADMIN and ADMIN to access stores page
   // STORE_ADMIN should not access stores page
@@ -27,7 +34,8 @@ export default async function StoresPage() {
   // Build where clause:
   // - MASTER_ADMIN and ADMIN see all stores
   // - STORE_ADMIN sees only their own store (if they have a storeId)
-  let whereClause = {};
+  // - Filter by category if selected
+  let whereClause: any = {};
   if (isStoreScopedAdmin) {
     // STORE_ADMIN: only their store
     if (userStoreId) {
@@ -37,7 +45,17 @@ export default async function StoresPage() {
       whereClause = { id: "nonexistent-store-id" };
     }
   }
-  // For MASTER_ADMIN and ADMIN, whereClause remains {} (all stores)
+  
+  // Add category filter if selected
+  if (selectedCategoryId) {
+    whereClause = {
+      ...whereClause,
+      categories: {
+        some: { id: selectedCategoryId },
+      },
+    };
+  }
+  // For MASTER_ADMIN and ADMIN without category filter, whereClause remains {} (all stores)
 
   const stores = await (prisma as any).store.findMany({
     where: whereClause,
