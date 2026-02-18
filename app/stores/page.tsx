@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { isMasterAdmin, isAdminLike, isStoreAdmin } from "@/lib/roles";
 import AddStoreDrawer from "./components/AddStoreDrawer";
 import StoresTable from "./components/StoresTable";
+import ManageCategoriesDrawer from "./components/ManageCategoriesDrawer";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default async function StoresPage() {
   }
   // For MASTER_ADMIN and ADMIN, whereClause remains {} (all stores)
 
-  const stores = await prisma.store.findMany({
+  const stores = await (prisma as any).store.findMany({
     where: whereClause,
     include: {
       users: {
@@ -47,19 +48,36 @@ export default async function StoresPage() {
           role: true,
         },
       },
+      categories: {
+        select: {
+          id: true,
+          name: true,
+          color: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
+  });
+
+  const categories = await (prisma as any).storeCategory.findMany({
+    orderBy: { name: "asc" },
   });
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Store Management</h1>
-        {/* Show Add Store button for MASTER_ADMIN and ADMIN */}
-        {(isMaster || isAdminLike(role)) && <AddStoreDrawer />}
+        <div className="flex items-center gap-3">
+          {/* Show Manage Categories button for MASTER_ADMIN */}
+          {isMaster && <ManageCategoriesDrawer />}
+          {/* Show Add Store button for MASTER_ADMIN and ADMIN */}
+          {(isMaster || isAdminLike(role)) && (
+            <AddStoreDrawer categories={categories} />
+          )}
+        </div>
       </div>
 
-      <StoresTable stores={stores} />
+      <StoresTable stores={stores} categories={categories} />
     </div>
   );
 }

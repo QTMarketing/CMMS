@@ -22,6 +22,7 @@ export default function LoginScreen() {
   const { height: screenHeight } = Dimensions.get('window');
   const containerHeight = screenHeight / 3;
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const loginUser = useAuthStore((state) => state.login);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -105,15 +106,27 @@ export default function LoginScreen() {
                   <Text className="font-semibold text-[#1F2937] dark:text-[#E5E7EB]" style={{ marginBottom: 10 }}>
                     Password
                   </Text>
-                  <TextInput
-                    className="w-full rounded-xl bg-[#F3F4F6] dark:bg-[#2D3748] border-none py-3 px-4 text-[#1F2937] dark:text-[#E5E7EB]"
-                    placeholder="Password"
-                    placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    value={value}
-                    onChangeText={onChange}
-                  />
+                  <View className="relative">
+                    <TextInput
+                      className="w-full rounded-xl bg-[#F3F4F6] dark:bg-[#2D3748] border-none py-3 px-4 pr-10 text-[#1F2937] dark:text-[#E5E7EB]"
+                      placeholder="Password"
+                      placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+                      secureTextEntry={!showPassword}
+                      autoCapitalize="none"
+                      value={value}
+                      onChangeText={onChange}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-3"
+                    >
+                      <Ionicons
+                        name={showPassword ? 'eye-off' : 'eye'}
+                        size={20}
+                        color={colorScheme === 'dark' ? '#E5E7EB' : '#6B7280'}
+                      />
+                    </TouchableOpacity>
+                  </View>
                   {errors.password && (
                     <Text className="mt-1 text-sm text-red-500">{errors.password.message}</Text>
                   )}

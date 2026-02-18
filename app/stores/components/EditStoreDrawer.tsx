@@ -14,18 +14,29 @@ type Store = {
   city: string | null;
   state: string | null;
   zipCode?: string | null;
+  categories?: {
+    id: string;
+    name: string;
+    color?: string | null;
+  }[];
 };
 
 type EditStoreDrawerProps = {
   store: Store | null;
   open: boolean;
   onClose: () => void;
+  allCategories?: {
+    id: string;
+    name: string;
+    color?: string | null;
+  }[];
 };
 
 export default function EditStoreDrawer({
   store,
   open,
   onClose,
+  allCategories,
 }: EditStoreDrawerProps) {
   const router = useRouter();
   const [name, setName] = useState("");
@@ -36,6 +47,7 @@ export default function EditStoreDrawer({
   const [zipCode, setZipCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (store) {
@@ -46,6 +58,9 @@ export default function EditStoreDrawer({
       setState(store.state || "");
       setZipCode(store.zipCode || "");
       setError(null);
+      setSelectedCategoryIds(
+        (store.categories || []).map((c) => c.id)
+      );
     }
   }, [store]);
 
@@ -80,6 +95,7 @@ export default function EditStoreDrawer({
           city: city.trim() || undefined,
           state: state.trim() || undefined,
           zipCode: zipCode.trim() || undefined,
+          categoryIds: selectedCategoryIds,
         }),
       });
 
@@ -184,6 +200,43 @@ export default function EditStoreDrawer({
               onChange={(e) => setState(e.target.value)}
               className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-gray-300 focus:outline-none focus:ring-0"
             />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Categories
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {(allCategories || []).length === 0 ? (
+              <p className="text-xs text-gray-500">
+                No categories defined yet.
+              </p>
+            ) : (
+              (allCategories || []).map((cat) => {
+                const checked = selectedCategoryIds.includes(cat.id);
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategoryIds((prev) =>
+                        prev.includes(cat.id)
+                          ? prev.filter((id) => id !== cat.id)
+                          : [...prev, cat.id]
+                      );
+                    }}
+                    className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                      checked
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-gray-50 text-gray-700 border-gray-300"
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 

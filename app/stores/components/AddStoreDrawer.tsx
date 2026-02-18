@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 import Drawer from "@/components/ui/Drawer";
 
@@ -11,7 +12,21 @@ export type StoreSummary = {
   code: string | null;
 };
 
-export default function AddStoreDrawer() {
+type StoreCategory = {
+  id: string;
+  name: string;
+  color?: string | null;
+};
+
+export default function AddStoreDrawer({
+  categories: initialCategories,
+}: {
+  categories: StoreCategory[];
+}) {
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role as string | undefined;
+  const isMasterAdmin = role === "MASTER_ADMIN";
+
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -24,8 +39,31 @@ export default function AddStoreDrawer() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  
+  // Category creation state
+  const [categories, setCategories] = useState<StoreCategory[]>(initialCategories);
+  const [showCreateCategory, setShowCreateCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryDescription, setNewCategoryDescription] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   const router = useRouter();
+
+  // Refresh categories when drawer opens
+  useEffect(() => {
+    if (open) {
+      fetch("/api/store-categories", { cache: "no-store" })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data) {
+            setCategories(data.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [open]);
 
   function resetForm() {
     setName("");
@@ -37,6 +75,55 @@ export default function AddStoreDrawer() {
     setManagerEmail("");
     setManagerPassword("");
     setError(null);
+    setSelectedCategoryIds([]);
+    setShowCreateCategory(false);
+    setNewCategoryName("");
+    setNewCategoryDescription("");
+    setNewCategoryColor("");
+  }
+
+  async function handleCreateCategory(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newCategoryName.trim()) {
+      setError("Category name is required.");
+      return;
+    }
+
+    setCreatingCategory(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/store-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newCategoryName.trim(),
+          description: newCategoryDescription.trim() || undefined,
+          color: newCategoryColor.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || (data && data.success === false)) {
+        setError(data?.error || "Failed to create category.");
+        setCreatingCategory(false);
+        return;
+      }
+
+      // Add new category to list and select it
+      const newCategory = data.data;
+      setCategories((prev) => [...prev, newCategory]);
+      setSelectedCategoryIds((prev) => [...prev, newCategory.id]);
+      setNewCategoryName("");
+      setNewCategoryDescription("");
+      setNewCategoryColor("");
+      setShowCreateCategory(false);
+    } catch (err) {
+      setError("Unexpected error while creating category.");
+    } finally {
+      setCreatingCategory(false);
+    }
   }
 
   function validate(): string | null {
@@ -70,6 +157,7 @@ export default function AddStoreDrawer() {
           zipCode: zipCode.trim() || undefined,
           managerEmail: managerEmail.trim() || undefined,
           managerPassword: managerPassword || undefined,
+          categoryIds: selectedCategoryIds,
         }),
       });
 
@@ -198,6 +286,104 @@ export default function AddStoreDrawer() {
                 onChange={(e) => setState(e.target.value)}
                 className="w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-gray-300 focus:outline-none focus:ring-0"
               />
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-gray-700">
+                Categories (optional)
+              </label>
+              {isMasterAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setShowCreateCategory(!showCreateCategory)}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  {showCreateCategory ? "Cancel" : "+ New Category"}
+                </button>
+              )}
+            </div>
+
+            {showCreateCategory && isMasterAdmin && (
+              <div className="mb-3 p-3 bg-gray-50 rounded border border-gray-200">
+                <form onSubmit={handleCreateCategory} className="space-y-2">
+                  <div>
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Category name *"
+                      className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={newCategoryDescription}
+                      onChange={(e) => setNewCategoryDescription(e.target.value)}
+                      placeholder="Description (optional)"
+                      className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-gray-300 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      value={newCategoryColor}
+                      onChange={(e) => setNewCategoryColor(e.target.value)}
+                      placeholder="Color hex (optional, e.g. #FF5733)"
+                      className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-gray-300 focus:outline-none"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={creatingCategory}
+                    className="w-full rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {creatingCategory ? "Creating..." : "Create Category"}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              {categories.length === 0 ? (
+                <p className="text-xs text-gray-500">
+                  {isMasterAdmin
+                    ? "No categories yet. Click 'New Category' above to create one."
+                    : "No categories yet. Master Admin can create categories."}
+                </p>
+              ) : (
+                categories.map((cat) => {
+                  const checked = selectedCategoryIds.includes(cat.id);
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategoryIds((prev) =>
+                          prev.includes(cat.id)
+                            ? prev.filter((id) => id !== cat.id)
+                            : [...prev, cat.id]
+                        );
+                      }}
+                      className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                        checked
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-gray-50 text-gray-700 border-gray-300"
+                      }`}
+                      style={
+                        cat.color && !checked
+                          ? { borderColor: cat.color, color: cat.color }
+                          : undefined
+                      }
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
 

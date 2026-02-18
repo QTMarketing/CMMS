@@ -63,7 +63,17 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, code, address, city, state, zipCode, managerEmail, managerPassword } = body ?? {};
+    const {
+      name,
+      code,
+      address,
+      city,
+      state,
+      zipCode,
+      managerEmail,
+      managerPassword,
+      categoryIds,
+    } = body ?? {};
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
@@ -107,6 +117,13 @@ export async function POST(req: NextRequest) {
         zipCode:
           zipCode && typeof zipCode === "string" ? zipCode.trim() : null,
         qrCode: qrCode,
+        ...(Array.isArray(categoryIds) && categoryIds.length
+          ? {
+              categories: {
+                connect: categoryIds.map((id: string) => ({ id })),
+              },
+            }
+          : {}),
       },
     });
 

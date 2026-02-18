@@ -253,6 +253,17 @@ model Store {
   transfersFrom  Transfer[] @relation("TransferFromStore")
   transfersTo    Transfer[] @relation("TransferToStore")
   purchaseOrders PurchaseOrder[]
+  categories     StoreCategory[]
+}
+
+model StoreCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  description String?
+  color     String?
+  createdAt DateTime @default(now())
+
+  stores    Store[]
 }
 
 // Auth.js / NextAuth supporting models

@@ -50,7 +50,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await req.json();
-    const { name, code, address, city, state, zipCode } = body ?? {};
+    const { name, code, address, city, state, zipCode, categoryIds } = body ?? {};
 
     const existingStore = await prisma.store.findUnique({
       where: { id },
@@ -101,6 +101,12 @@ export async function PATCH(
     if (zipCode !== undefined)
       updateData.zipCode =
         zipCode && typeof zipCode === "string" ? zipCode.trim() : null;
+
+    if (Array.isArray(categoryIds)) {
+      updateData.categories = {
+        set: categoryIds.map((id: string) => ({ id })),
+      };
+    }
 
     const store = await prisma.store.update({
       where: { id },

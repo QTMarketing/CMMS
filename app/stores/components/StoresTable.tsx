@@ -19,18 +19,29 @@ type Store = {
     email: string;
     role: string;
   }[];
+  categories?: {
+    id: string;
+    name: string;
+    color?: string | null;
+  }[];
 };
 
 type StoresTableProps = {
   stores: Store[];
+  categories: {
+    id: string;
+    name: string;
+    color?: string | null;
+  }[];
 };
 
-export default function StoresTable({ stores }: StoresTableProps) {
+export default function StoresTable({ stores, categories }: StoresTableProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [locationFilter, setLocationFilter] = useState("All");
   const [storeTypeFilter, setStoreTypeFilter] = useState("All");
+  const [categoryFilter, setCategoryFilter] = useState("All");
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [deletingStoreId, setDeletingStoreId] = useState<string | null>(null);
@@ -72,9 +83,17 @@ export default function StoresTable({ stores }: StoresTableProps) {
       const matchesLocation =
         locationFilter === "All" || location === locationFilter;
 
-      return matchesSearch && matchesLocation;
+      // Category filter
+      const matchesCategory =
+        categoryFilter === "All"
+          ? true
+          : (store.categories || []).some(
+              (c) => c.id === categoryFilter
+            );
+
+      return matchesSearch && matchesLocation && matchesCategory;
     });
-  }, [stores, searchQuery, locationFilter]);
+  }, [stores, searchQuery, locationFilter, categoryFilter]);
 
   // Get store manager email (first STORE_ADMIN user)
   const getStoreManagerEmail = (store: Store): string => {
@@ -189,6 +208,18 @@ export default function StoresTable({ stores }: StoresTableProps) {
               ))}
             </select>
             <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="w-full sm:w-auto border border-gray-300 rounded bg-gray-50 text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm py-2 px-3"
+            >
+              <option value="All">Category: All</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+            <select
               value={storeTypeFilter}
               onChange={(e) => setStoreTypeFilter(e.target.value)}
               className="w-full sm:w-auto border border-gray-300 rounded bg-gray-50 text-gray-800 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm py-2 px-3"
@@ -208,6 +239,7 @@ export default function StoresTable({ stores }: StoresTableProps) {
                 <th className="p-4 font-semibold text-gray-600">Store ID</th>
                 <th className="p-4 font-semibold text-gray-600">Store Name</th>
                 <th className="p-4 font-semibold text-gray-600">Location</th>
+                <th className="p-4 font-semibold text-gray-600">Categories</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
                 <th className="p-4 font-semibold text-gray-600">Manager</th>
                 <th className="p-4 font-semibold text-gray-600">Creation Date</th>
@@ -239,6 +271,22 @@ export default function StoresTable({ stores }: StoresTableProps) {
                     </td>
                     <td className="p-4 text-gray-600">
                       {formatLocation(store)}
+                    </td>
+                    <td className="p-4 text-gray-600">
+                      <div className="flex flex-wrap gap-1">
+                        {(store.categories || []).length === 0 ? (
+                          <span className="text-xs text-gray-400">—</span>
+                        ) : (
+                          (store.categories || []).map((cat) => (
+                            <span
+                              key={cat.id}
+                              className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-50 text-blue-700"
+                            >
+                              {cat.name}
+                            </span>
+                          ))
+                        )}
+                      </div>
                     </td>
                     <td className="p-4">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
@@ -348,6 +396,7 @@ export default function StoresTable({ stores }: StoresTableProps) {
       <EditStoreDrawer
         store={editingStore}
         open={isEditDrawerOpen}
+        allCategories={categories}
         onClose={() => {
           setIsEditDrawerOpen(false);
           setEditingStore(null);

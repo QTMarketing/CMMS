@@ -11,15 +11,9 @@ const allNavItems = [
   { name: "Preventive Maintenance Schedules", href: "/pm" },
   { name: "Technicians", href: "/technicians" },
   { name: "Requests", href: "/requests" },
-  { name: "Stores", href: "/stores" },
+  { name: "Locations", href: "/stores" },
   { name: "Users", href: "/users" },
   { name: "Reports", href: "/reports" },
-];
-
-// Store sub-items (Assets and Parts)
-const storeSubItems = [
-  { name: "Assets", href: "/assets" },
-  { name: "Parts", href: "/inventory" },
 ];
 
 export default function Sidebar({
@@ -174,11 +168,11 @@ export default function Sidebar({
         <nav className="flex-1 space-y-2 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
-            const isStores = item.href === "/stores";
-            // Only highlight Stores if we're on Stores, Assets, or Parts pages
-            const isStoresPageActive = isStores && (pathname === "/stores" || pathname === "/assets" || pathname === "/inventory");
-            // Only apply Stores active state to the Stores item itself
-            const shouldHighlight = isStores ? isStoresPageActive : isActive;
+            const isLocations = item.href === "/stores";
+            // Only highlight Locations if we're on Locations, Assets, or Parts pages
+            const isLocationsPageActive = isLocations && (pathname === "/stores" || pathname === "/assets" || pathname === "/inventory");
+            // Only apply Locations active state to the Locations item itself
+            const shouldHighlight = isLocations ? isLocationsPageActive : isActive;
             
             return (
               <div key={item.name}>
@@ -193,28 +187,6 @@ export default function Sidebar({
                 >
                   <span>{item.name}</span>
                 </Link>
-                {/* Show Assets and Parts nested under Stores */}
-                {isStores && !isTechnician && !isUser && (
-                  <div className="ml-4 mt-1 space-y-1">
-                    {storeSubItems.map((subItem) => {
-                      const isSubActive = pathname === subItem.href;
-                      return (
-                        <Link
-                          key={subItem.name}
-                          href={subItem.href}
-                          className={`flex items-center gap-3 px-4 py-2 text-xs font-medium rounded-lg transition ${
-                            isSubActive
-                              ? "bg-[#4361EE] text-white"
-                              : "text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                          }`}
-                          onClick={() => isMobile && onClose && onClose()}
-                        >
-                          <span>{subItem.name}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             );
           })}
