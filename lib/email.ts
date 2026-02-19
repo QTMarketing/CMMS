@@ -29,6 +29,11 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const resendEnabled = !!RESEND_API_KEY;
 const resend = resendEnabled ? new Resend(RESEND_API_KEY) : null;
 
+/** Returns whether an email provider (Resend or SMTP) is configured. */
+export function isEmailConfigured(): boolean {
+  return !!(resendEnabled && resend) || !!(smtpEnabled && transporter);
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -37,7 +42,7 @@ export async function sendEmail({
   to: string | string[];
   subject: string;
   html: string;
-}): Promise<void> {
+}): Promise<{ sent: boolean; error?: string }> {
   // Prefer Resend if configured
   if (resend && resendEnabled) {
     try {
@@ -47,12 +52,14 @@ export async function sendEmail({
         subject,
         html,
       });
-      return;
+      return { sent: true };
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
       console.error(
         "[email] Failed to send via Resend, falling back to SMTP",
         error
       );
+      // Fall through to SMTP
     }
   }
 
@@ -61,7 +68,7 @@ export async function sendEmail({
     console.warn(
       "[email] No email provider configured (Resend/SMTP), skipping email send"
     );
-    return;
+    return { sent: false, error: "No email provider configured (set RESEND_API_KEY or SMTP_* in env)." };
   }
 
   try {
@@ -71,8 +78,11 @@ export async function sendEmail({
       subject,
       html,
     });
+    return { sent: true };
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     console.error("[email] Failed to send email via SMTP", error);
+    return { sent: false, error: msg };
   }
 }
 

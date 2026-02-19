@@ -1,25 +1,36 @@
-import { NextResponse } from "next/server";
-import { sendEmail } from "@/lib/email";
+import { NextRequest, NextResponse } from "next/server";
+import { sendEmail, isEmailConfigured } from "@/lib/email";
 
-export async function GET() {
-  const to = "poudelaryan46@gmail.com";
-  console.log("[test-email] Attempting to send to:", to);
+export async function GET(req: NextRequest) {
+  const url = req.nextUrl;
+  const to = url.searchParams.get("to")?.trim() || "poudelaryan46@gmail.com";
+  const configured = isEmailConfigured();
 
-  try {
-    await sendEmail({
+  console.log("[test-email] configured:", configured, "to:", to);
+
+  if (!configured) {
+    return NextResponse.json({
+      ok: false,
+      configured: false,
+      sent: false,
       to,
-      subject: "Test Email to Personal Address (Debug)",
-      html: "<p>This is a test email sent directly to your personal email.</p>",
-    });
-
-    return NextResponse.json({ ok: true, to });
-  } catch (err) {
-    console.error("[test-email] Failed:", err);
-    return NextResponse.json(
-      { ok: false, error: String(err) },
-      { status: 500 }
-    );
+      error: "No email provider configured. Set RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS in Vercel Environment Variables.",
+    }, { status: 503 });
   }
+
+  const result = await sendEmail({
+    to,
+    subject: "CMMS Test Email (Debug)",
+    html: "<p>This is a test email from your CMMS app. If you received this, email is working.</p>",
+  });
+
+  return NextResponse.json({
+    ok: result.sent,
+    configured: true,
+    sent: result.sent,
+    to,
+    error: result.error ?? undefined,
+  }, result.sent ? { status: 200 } : { status: 500 });
 }
 
 
