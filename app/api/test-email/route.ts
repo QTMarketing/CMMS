@@ -3,7 +3,15 @@ import { sendEmail, isEmailConfigured } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl;
-  const to = url.searchParams.get("to")?.trim() || "poudelaryan46@gmail.com";
+  const to = url.searchParams.get("to")?.trim() || process.env.TEST_EMAIL_TO || "";
+  if (!to) {
+    return NextResponse.json({
+      ok: false,
+      configured: isEmailConfigured(),
+      sent: false,
+      error: "Provide recipient via ?to=your@email.com or set TEST_EMAIL_TO in env.",
+    }, { status: 400 });
+  }
   const configured = isEmailConfigured();
 
   console.log("[test-email] configured:", configured, "to:", to);
