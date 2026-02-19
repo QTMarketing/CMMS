@@ -179,6 +179,8 @@ export async function PATCH(
     }
   }
 
+  let didAssignByEmail = false;
+
   // Only admins may change priority / description / assignment / due date / title / asset. Technicians
   // are limited to status transitions and attachments on their own work orders.
   if (isAdmin) {
@@ -266,6 +268,7 @@ export async function PATCH(
           );
         }
         data.assignedToId = vendor.id;
+        didAssignByEmail = true;
       } else {
         data.assignedToId = null;
       }
@@ -305,8 +308,11 @@ export async function PATCH(
     !!newTechnicianId && newTechnicianId !== previousTechnicianId;
   const statusChanged = updated.status !== previousStatus;
 
-  // Notify technician if assigned (use linked User email if present, else Vendor email)
-  if (technicianChanged && newTechnicianId) {
+  // Notify technician when: (a) assignee changed, or (b) "Share by email" was used (so they always get the email)
+  const shouldNotifyTechnician =
+    newTechnicianId && (technicianChanged || didAssignByEmail);
+
+  if (shouldNotifyTechnician) {
     try {
       const detailed = await prisma.workOrder.findUnique({
         where: { id: updated.id },
@@ -356,7 +362,7 @@ export async function PATCH(
           ? detailed.dueDate.toLocaleString()
           : undefined;
 
-        await sendWorkOrderAssignedEmail({
+        const sendResult = await sendWorkOrderAssignedEmail({
           technicianEmail,
           technicianName: technician?.name || undefined,
           workOrderId: updated.id,
@@ -366,6 +372,14 @@ export async function PATCH(
           description: detailed?.description || undefined,
           dueDate: dueDateString,
         });
+        if (!sendResult.sent) {
+          console.error(
+            "[workorders] Assignment email not sent (workOrder: %s, to: %s): %s",
+            updated.id,
+            technicianEmail,
+            sendResult.error ?? "unknown"
+          );
+        }
       } else {
         console.warn(
           "[workorders] No email for assigned technician (Vendor id: %s); assignment notification skipped.",

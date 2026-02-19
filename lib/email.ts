@@ -94,7 +94,7 @@ export async function sendWorkOrderAssignedEmail(options: {
   title?: string;
   description?: string;
   dueDate?: string;
-}): Promise<void> {
+}): Promise<{ sent: boolean; error?: string }> {
   const {
     technicianEmail,
     technicianName,
@@ -131,7 +131,7 @@ export async function sendWorkOrderAssignedEmail(options: {
 
   const html = lines.join("");
 
-  await sendEmail({
+  return sendEmail({
     to: technicianEmail,
     subject: `New Work Order Assigned (#${workOrderId})`,
     html,
