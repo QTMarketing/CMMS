@@ -2,16 +2,17 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Table from "@/components/ui/Table";
 import Link from "next/link";
 import { isAdminLike, isMasterAdmin } from "@/lib/roles";
 import { getScopedStoreId, canSeeAllStores } from "@/lib/storeAccess";
 import StoreFilter from "@/components/StoreFilter";
 import {
   approveRequest,
-  rejectRequest,
   convertRequestToWorkOrder,
 } from "./actions";
+import AddRequestDrawer from "@/app/stores/components/AddRequestDrawer";
+import RejectRequestButton from "./RejectRequestButton";
+import RequestsSortControls from "./RequestsSortControls";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,11 @@ export default async function RequestsPage({
       ? params.q.trim()
       : "";
 
+  const sortBy = typeof params.sortBy === "string" && params.sortBy.trim() ? params.sortBy.trim() : "createdAt";
+  const sortOrder = params.sortOrder === "asc" ? "asc" : "desc";
+  const validSortFields = ["createdAt", "requestNumber", "title", "status", "priority", "createdBy"] as const;
+  const sortField = validSortFields.includes(sortBy as any) ? sortBy : "createdAt";
+
   if (isMasterAdmin(role)) {
     if (selectedStoreId) {
       where.storeId = selectedStoreId;
@@ -88,11 +94,13 @@ export default async function RequestsPage({
   let requests: any[] = [];
   let stores: { id: string; name: string; code?: string | null }[] = [];
 
+  const orderBy = { [sortField]: sortOrder };
+
   try {
     const [reqs, storeResults] = await Promise.all([
       prisma.request.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy,
         include: { asset: true },
       }),
       isMasterAdmin(role)
@@ -132,13 +140,7 @@ export default async function RequestsPage({
               label="Store"
             />
           )}
-          <button
-            type="button"
-            className="flex items-center justify-center gap-2 min-w-[84px] rounded-lg h-10 px-4 bg-[#2b8cee] text-white text-sm font-bold tracking-[0.015em] hover:bg-[#1e71c5]"
-          >
-            <span className="text-base">+</span>
-            <span className="truncate">Add New Request</span>
-          </button>
+          <AddRequestDrawer defaultStoreId={selectedStoreId ?? undefined} />
         </div>
       </div>
 
@@ -151,6 +153,11 @@ export default async function RequestsPage({
             action="/requests"
             method="get"
           >
+            {selectedStoreId != null && (
+              <input type="hidden" name="storeId" value={selectedStoreId} />
+            )}
+            <input type="hidden" name="sortBy" value={sortField} />
+            <input type="hidden" name="sortOrder" value={sortOrder} />
             <label className="flex flex-col min-w-40 h-12 w-full">
               <div className="flex w-full flex-1 items-stretch rounded-lg h-full border border-gray-200 bg-gray-100">
                 <div className="flex items-center justify-center pl-4 pr-2 text-gray-500">
@@ -165,6 +172,12 @@ export default async function RequestsPage({
               </div>
             </label>
           </form>
+          <RequestsSortControls
+            sortField={sortField}
+            sortOrder={sortOrder}
+            searchQuery={searchQuery}
+            selectedStoreId={selectedStoreId ?? null}
+          />
           <div className="flex gap-2 overflow-x-auto pb-2">
             <button className="flex h-12 shrink-0 items-center justify-center gap-x-2 rounded-lg bg-gray-100 border border-gray-200 px-4 hover:bg-gray-200 text-sm text-gray-800">
               <span>Status: All</span>
@@ -252,8 +265,10 @@ export default async function RequestsPage({
 
                   return (
                     <tr key={req.id}>
-                      <td className="h-[72px] px-4 py-2 text-sm text-gray-500">
-                        {req.id}
+                      <td className="h-[72px] px-4 py-2 text-sm text-gray-500 font-mono">
+                        {req.requestNumber
+                          ? String(req.requestNumber).padStart(4, "0")
+                          : req.id}
                       </td>
                       <td className="h-[72px] px-4 py-2 text-sm font-medium text-gray-900">
                         <Link
@@ -286,51 +301,53 @@ export default async function RequestsPage({
                           : "—"}
                       </td>
                       <td className="h-[72px] px-4 py-2 text-sm">
-                        {req.status === "Open" && (
-                          <div className="flex flex-wrap gap-2">
-                            <form action={approveRequest}>
-                              <button
-                                type="submit"
-                                name="requestId"
-                                value={req.id}
-                                className="px-2 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700"
-                              >
-                                Approve
-                              </button>
-                            </form>
-                            <form action={rejectRequest}>
-                              <button
-                                type="submit"
-                                name="requestId"
-                                value={req.id}
-                                className="px-2 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700"
-                              >
-                                Reject
-                              </button>
-                            </form>
-                          </div>
-                        )}
-                        {req.status === "Approved" && (
-                          <form action={convertRequestToWorkOrder}>
-                            <button
-                              type="submit"
-                              name="requestId"
-                              value={req.id}
-                              className="px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
-                            >
-                              Convert to Work Order
-                            </button>
-                          </form>
-                        )}
-                        {req.status === "Converted" && (
-                          <button
-                            type="button"
-                            disabled
-                            className="px-2 py-1 bg-green-600 text-white text-xs rounded-md cursor-default"
+                        <div className="flex flex-wrap gap-2">
+                          <Link
+                            href={`/requests/${req.id}`}
+                            className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-md border border-gray-300 hover:bg-gray-200"
                           >
-                            Converted
-                          </button>
-                        )}
+                            Edit
+                          </Link>
+                          {req.status === "Open" && (
+                            <>
+                              <form action={approveRequest}>
+                                <button
+                                  type="submit"
+                                  name="requestId"
+                                  value={req.id}
+                                  className="px-2 py-1 bg-green-600 text-white text-xs rounded-md hover:bg-green-700"
+                                >
+                                  Approve
+                                </button>
+                              </form>
+                              <RejectRequestButton
+                                requestId={req.id}
+                                requestTitle={req.title}
+                              />
+                            </>
+                          )}
+                          {req.status === "Approved" && (
+                            <form action={convertRequestToWorkOrder}>
+                              <button
+                                type="submit"
+                                name="requestId"
+                                value={req.id}
+                                className="px-2 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700"
+                              >
+                                Convert to Work Order
+                              </button>
+                            </form>
+                          )}
+                          {req.status === "Converted" && (
+                            <button
+                              type="button"
+                              disabled
+                              className="px-2 py-1 bg-green-600 text-white text-xs rounded-md cursor-default"
+                            >
+                              Converted
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

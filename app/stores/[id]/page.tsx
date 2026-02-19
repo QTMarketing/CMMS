@@ -10,10 +10,12 @@ export const dynamic = "force-dynamic";
 
 type PageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
 };
 
-export default async function StoreDetailPage({ params }: PageProps) {
+export default async function StoreDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const { tab: tabParam } = await searchParams;
   const session = await getServerSession(authOptions);
 
   if (!session || !isAdminLike((session.user as any)?.role)) {
@@ -150,6 +152,7 @@ export default async function StoreDetailPage({ params }: PageProps) {
       }))}
       schedules={serializableSchedules}
       purchaseOrders={serializablePurchaseOrders}
+      initialTab={tabParam || undefined}
     />
   );
 }

@@ -133,6 +133,9 @@ export default function CreateWorkOrderForm({
     const uploadStoreId = isMasterAdmin ? storeId : currentStoreId;
     if (uploadStoreId) {
       formData.append("storeId", uploadStoreId);
+    } else if (isMasterAdmin && !storeId) {
+      // Master admin must select a store first
+      throw new Error("Please select a store before uploading files.");
     }
 
     const res = await fetch("/api/upload", {

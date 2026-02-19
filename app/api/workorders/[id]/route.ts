@@ -8,6 +8,8 @@ import {
   sendEmail,
   sendWorkOrderAssignedEmail,
   sendWorkOrderUpdateEmail,
+  sendWorkOrderApprovedEmail,
+  sendWorkOrderRejectedEmail,
 } from "@/lib/email";
 
 const VALID_STATUSES = ["Open", "In Progress", "Pending Review", "Completed", "Cancelled"] as const;
@@ -147,6 +149,22 @@ export async function PATCH(
     status: nextStatus,
     completedAt,
   };
+
+  // Rejection from Pending Review: accept and store rejectionReason (admin only)
+  const isRejectFromPendingReview =
+    isAdmin &&
+    currentStatus === "Pending Review" &&
+    nextStatus === "In Progress";
+  if (isRejectFromPendingReview && Object.prototype.hasOwnProperty.call(body, "rejectionReason")) {
+    const reason = body.rejectionReason;
+    data.rejectionReason =
+      typeof reason === "string" && reason.trim().length > 0 ? reason.trim() : null;
+  }
+  // When approving (Pending Review -> Completed), clear any previous rejection reason
+  if (currentStatus === "Pending Review" && nextStatus === "Completed") {
+    data.rejectionReason = null;
+  }
+
   // Technicians and admins can add attachments
   if (Object.prototype.hasOwnProperty.call(body, "attachments")) {
     if (Array.isArray(body.attachments)) {
@@ -161,15 +179,47 @@ export async function PATCH(
     }
   }
 
-  // Only admins may change priority / description / assignment / due date. Technicians
+  // Only admins may change priority / description / assignment / due date / title / asset. Technicians
   // are limited to status transitions and attachments on their own work orders.
   if (isAdmin) {
+    if (body.title !== undefined) {
+      data.title =
+        typeof body.title === "string" && body.title.trim().length > 0
+          ? body.title.trim()
+          : existing.title;
+    }
+
     if (body.priority !== undefined) {
       data.priority = body.priority;
     }
 
     if (body.description !== undefined) {
       data.description = body.description;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, "assetId")) {
+      const rawAssetId = body.assetId;
+      if (rawAssetId === null || rawAssetId === "") {
+        data.assetId = null;
+      } else if (typeof rawAssetId === "string" && rawAssetId.trim()) {
+        const asset = await prisma.asset.findUnique({
+          where: { id: rawAssetId.trim() },
+          select: { id: true, storeId: true },
+        });
+        if (!asset) {
+          return NextResponse.json(
+            { error: "Asset not found." },
+            { status: 400 }
+          );
+        }
+        if (existing.storeId && asset.storeId && asset.storeId !== existing.storeId) {
+          return NextResponse.json(
+            { error: "Asset must belong to the work order's store." },
+            { status: 400 }
+          );
+        }
+        data.assetId = asset.id;
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(body, "dueDate")) {
@@ -194,6 +244,33 @@ export async function PATCH(
       }
     }
 
+    // Assign by technician email: resolve to Vendor id and set assignedToId (sends assignment email)
+    const hasAssignedToEmail = Object.prototype.hasOwnProperty.call(
+      body,
+      "assignedToEmail"
+    );
+    if (hasAssignedToEmail) {
+      const emailRaw =
+        typeof body.assignedToEmail === "string"
+          ? body.assignedToEmail.trim()
+          : "";
+      if (emailRaw.length > 0) {
+        const vendor = await prisma.vendor.findFirst({
+          where: { email: { equals: emailRaw, mode: "insensitive" } },
+          select: { id: true },
+        });
+        if (!vendor) {
+          return NextResponse.json(
+            { error: "No technician found with this email address." },
+            { status: 400 }
+          );
+        }
+        data.assignedToId = vendor.id;
+      } else {
+        data.assignedToId = null;
+      }
+    }
+
     const hasAssignedToIdKey = Object.prototype.hasOwnProperty.call(
       body,
       "assignedToId"
@@ -203,7 +280,7 @@ export async function PATCH(
       "assignedTo"
     );
 
-    if (hasAssignedToIdKey || hasAssignedToKey) {
+    if (!hasAssignedToEmail && (hasAssignedToIdKey || hasAssignedToKey)) {
       const nextAssignedToId =
         (hasAssignedToIdKey ? body.assignedToId : body.assignedTo) ?? null;
 
@@ -228,7 +305,7 @@ export async function PATCH(
     !!newTechnicianId && newTechnicianId !== previousTechnicianId;
   const statusChanged = updated.status !== previousStatus;
 
-  // Notify technician if assigned
+  // Notify technician if assigned (use linked User email if present, else Vendor email)
   if (technicianChanged && newTechnicianId) {
     try {
       const detailed = await prisma.workOrder.findUnique({
@@ -236,6 +313,7 @@ export async function PATCH(
         include: {
           assignedTo: {
             select: {
+              id: true,
               email: true,
               name: true,
               store: {
@@ -260,22 +338,39 @@ export async function PATCH(
       });
 
       const technician = detailed?.assignedTo;
+      let technicianEmail: string | null = technician?.email?.trim() || null;
 
-      if (technician?.email) {
+      // Prefer the linked User's email (login email) so the technician gets mail at the address they use
+      if (technician?.id) {
+        const linkedUser = await prisma.user.findFirst({
+          where: { vendorId: technician.id },
+          select: { email: true },
+        });
+        if (linkedUser?.email?.trim()) {
+          technicianEmail = linkedUser.email.trim();
+        }
+      }
+
+      if (technicianEmail) {
         const dueDateString = detailed?.dueDate
           ? detailed.dueDate.toLocaleString()
           : undefined;
 
         await sendWorkOrderAssignedEmail({
-          technicianEmail: technician.email,
-          technicianName: technician.name || undefined,
+          technicianEmail,
+          technicianName: technician?.name || undefined,
           workOrderId: updated.id,
           storeName:
-            technician.store?.name || detailed?.store?.name || undefined,
+            technician?.store?.name || detailed?.store?.name || undefined,
           title: detailed?.title,
           description: detailed?.description || undefined,
           dueDate: dueDateString,
         });
+      } else {
+        console.warn(
+          "[workorders] No email for assigned technician (Vendor id: %s); assignment notification skipped.",
+          newTechnicianId
+        );
       }
     } catch (error) {
       console.error(
@@ -308,26 +403,46 @@ export async function PATCH(
       const creator = detailed?.createdBy;
       // Only notify if creator is a USER (not admin/technician)
       if (creator?.email && creator.role === "USER") {
-        let updateMessage = "";
-        if (statusChanged) {
-          updateMessage = `Status changed to ${updated.status}`;
-        }
-        if (technicianChanged && detailed?.assignedTo) {
-          updateMessage += updateMessage
-            ? `. Assigned to ${detailed.assignedTo.name}`
-            : `Assigned to ${detailed.assignedTo.name}`;
-        }
-        if (isAdmin && !statusChanged && !technicianChanged) {
-          updateMessage = "Work order has been updated";
-        }
+        const approvedFromPending =
+          previousStatus === "Pending Review" && nextStatus === "Completed";
+        const rejectedFromPending =
+          previousStatus === "Pending Review" && nextStatus === "In Progress";
 
-        await sendWorkOrderUpdateEmail({
-          userEmail: creator.email,
-          workOrderId: updated.id,
-          workOrderTitle: updated.title,
-          updateMessage: updateMessage || "Work order has been updated",
-          status: updated.status,
-        });
+        if (approvedFromPending) {
+          await sendWorkOrderApprovedEmail({
+            toEmail: creator.email,
+            workOrderId: updated.id,
+            title: updated.title,
+          });
+        } else if (rejectedFromPending) {
+          await sendWorkOrderRejectedEmail({
+            toEmail: creator.email,
+            workOrderId: updated.id,
+            title: updated.title,
+            reason: updated.rejectionReason ?? "No reason provided.",
+          });
+        } else {
+          let updateMessage = "";
+          if (statusChanged) {
+            updateMessage = `Status changed to ${updated.status}`;
+          }
+          if (technicianChanged && detailed?.assignedTo) {
+            updateMessage += updateMessage
+              ? `. Assigned to ${detailed.assignedTo.name}`
+              : `Assigned to ${detailed.assignedTo.name}`;
+          }
+          if (isAdmin && !statusChanged && !technicianChanged) {
+            updateMessage = "Work order has been updated";
+          }
+
+          await sendWorkOrderUpdateEmail({
+            userEmail: creator.email,
+            workOrderId: updated.id,
+            workOrderTitle: updated.title,
+            updateMessage: updateMessage || "Work order has been updated",
+            status: updated.status,
+          });
+        }
       }
     } catch (error) {
       console.error(

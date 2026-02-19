@@ -7,6 +7,7 @@ import { isMasterAdmin, isAdminLike, isStoreAdmin } from "@/lib/roles";
 import AddStoreDrawer from "./components/AddStoreDrawer";
 import StoresTable from "./components/StoresTable";
 import ManageCategoriesDrawer from "./components/ManageCategoriesDrawer";
+import StoreTree from "@/components/store-tree/StoreTree";
 
 export const dynamic = "force-dynamic";
 
@@ -82,20 +83,26 @@ export default async function StoresPage({
   });
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Store Management</h1>
         <div className="flex items-center gap-3">
-          {/* Show Manage Categories button for MASTER_ADMIN */}
           {isMaster && <ManageCategoriesDrawer />}
-          {/* Show Add Store button for MASTER_ADMIN and ADMIN */}
           {(isMaster || isAdminLike(role)) && (
             <AddStoreDrawer categories={categories} />
           )}
         </div>
       </div>
 
-      <StoresTable stores={stores} categories={categories} />
+      <div className="space-y-6">
+        <aside>
+          <h2 className="text-sm font-semibold text-gray-700 mb-2">Locations</h2>
+          <StoreTree />
+        </aside>
+        <div>
+          <StoresTable stores={stores} categories={categories} />
+        </div>
+      </div>
     </div>
   );
 }

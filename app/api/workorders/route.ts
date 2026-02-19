@@ -331,11 +331,43 @@ export async function POST(request: Request) {
 
     // userId is already set above from session or mobile token
 
+    // Build a human-readable location string from the store's address info
+    let locationFromStore: string | null = null;
+    if (finalStoreId) {
+      const store = await prisma.store.findUnique({
+        where: { id: finalStoreId },
+        select: {
+          name: true,
+          address: true,
+          city: true,
+          state: true,
+          zipCode: true,
+        },
+      });
+
+      if (store) {
+        const parts: string[] = [];
+        if (store.name) parts.push(store.name);
+        if (store.address) parts.push(store.address);
+
+        const cityStateZipParts: string[] = [];
+        if (store.city) cityStateZipParts.push(store.city);
+        if (store.state) cityStateZipParts.push(store.state);
+        if (store.zipCode) cityStateZipParts.push(store.zipCode);
+
+        if (cityStateZipParts.length) {
+          parts.push(cityStateZipParts.join(", "));
+        }
+
+        locationFromStore = parts.join(" • ") || null;
+      }
+    }
+
     const newWorkOrder = await prisma.workOrder.create({
       data: {
         id: nanoid(),
         title,
-        location: null, // Location removed - using store location instead
+        location: locationFromStore,
         assetId: assetId || null, // Allow null for optional asset
         partsRequired: partsRequired === true,
         problemDescription: problemDescription || undefined,
@@ -357,6 +389,7 @@ export async function POST(request: Request) {
         const vendor = await prisma.vendor.findUnique({
           where: { id: newWorkOrder.assignedToId },
           select: {
+            id: true,
             email: true,
             name: true,
             store: {
@@ -367,7 +400,18 @@ export async function POST(request: Request) {
           },
         });
 
-        if (vendor?.email) {
+        let technicianEmail: string | null = vendor?.email?.trim() || null;
+        if (vendor?.id) {
+          const linkedUser = await prisma.user.findFirst({
+            where: { vendorId: vendor.id },
+            select: { email: true },
+          });
+          if (linkedUser?.email?.trim()) {
+            technicianEmail = linkedUser.email.trim();
+          }
+        }
+
+        if (technicianEmail) {
           const store = newWorkOrder.storeId
             ? await prisma.store.findUnique({
                 where: { id: newWorkOrder.storeId },
@@ -380,11 +424,11 @@ export async function POST(request: Request) {
             : undefined;
 
           await sendWorkOrderAssignedEmail({
-            technicianEmail: vendor.email,
-            technicianName: vendor.name || undefined,
+            technicianEmail,
+            technicianName: vendor?.name || undefined,
             workOrderId: newWorkOrder.id,
             storeName:
-              vendor.store?.name || store?.name || undefined,
+              vendor?.store?.name || store?.name || undefined,
             title: newWorkOrder.title,
             description: newWorkOrder.description || undefined,
             dueDate: dueDateString,

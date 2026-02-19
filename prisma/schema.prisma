@@ -92,8 +92,11 @@ model WorkOrder {
   assignedTo   Vendor? @relation("VendorWorkOrders", fields: [assignedToId], references: [id])
 
   // Track who created the work order (for USER role notifications)
-  createdById String?
-  createdBy   User?   @relation("WorkOrderCreator", fields: [createdById], references: [id])
+  createdById     String?
+  createdBy       User?   @relation("WorkOrderCreator", fields: [createdById], references: [id])
+
+  /// Reason provided when work order is rejected from Pending Review (emailed to creator)
+  rejectionReason String?
 
   notes Note[]
   transfers Transfer[]
@@ -194,15 +197,19 @@ model User {
 }
 
 model Request {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  assetId     String?
-  asset       Asset?   @relation(fields: [assetId], references: [id])
-  priority    String
-  status      String
-  createdAt   DateTime @default(now())
-  createdBy   String?
+  id               String   @id @default(cuid())
+  /// Global human-friendly request number (e.g. 0001, 0002, ...)
+  requestNumber    Int      @unique
+  title            String
+  description      String
+  assetId          String?
+  asset            Asset?   @relation(fields: [assetId], references: [id])
+  priority         String
+  status           String
+  rejectionReason  String?  // Reason provided when request is rejected (emailed to submitter)
+  attachments      String[] @default([]) // Array of file URLs (images/videos)
+  createdAt        DateTime @default(now())
+  createdBy        String?
 
   // Multi-store: optional store this request belongs to.
   storeId String?
@@ -230,18 +237,41 @@ model Transfer {
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
 }
 
+// Division → District → Store hierarchy
+model Division {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  districts District[]
+}
+
+model District {
+  id         String   @id @default(cuid())
+  name       String
+  divisionId String
+  division   Division @relation(fields: [divisionId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  stores Store[]
+}
+
 // Multi-store / multi-tenant support. For now, storeId fields are optional on
 // core entities so existing single-store data keeps working unchanged.
 model Store {
-  id        String   @id @default(cuid())
-  name      String
-  code      String?  @unique
-  address   String?
-  city      String?
-  state     String?
-  zipCode   String?
-  qrCode    String?  @unique // QR code token for public work order form
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  name       String
+  code       String?  @unique
+  address    String?
+  city       String?
+  state      String?
+  zipCode    String?
+  qrCode     String?  @unique // QR code token for public work order form
+  districtId String?
+  district   District? @relation(fields: [districtId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
 
   users          User[]
   vendors        Vendor[]

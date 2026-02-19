@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 const EMAIL_FROM =
   process.env.EMAIL_FROM || "QuickTrack CMMS <no-reply@quicktrackinc.com>";
@@ -24,6 +25,10 @@ const transporter = smtpEnabled
     })
   : null;
 
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const resendEnabled = !!RESEND_API_KEY;
+const resend = resendEnabled ? new Resend(RESEND_API_KEY) : null;
+
 export async function sendEmail({
   to,
   subject,
@@ -33,8 +38,29 @@ export async function sendEmail({
   subject: string;
   html: string;
 }): Promise<void> {
+  // Prefer Resend if configured
+  if (resend && resendEnabled) {
+    try {
+      await resend.emails.send({
+        from: EMAIL_FROM,
+        to,
+        subject,
+        html,
+      });
+      return;
+    } catch (error) {
+      console.error(
+        "[email] Failed to send via Resend, falling back to SMTP",
+        error
+      );
+    }
+  }
+
+  // Fallback to SMTP if Resend is not available or fails
   if (!transporter || !smtpEnabled) {
-    console.warn("[email] SMTP not fully configured, skipping email send");
+    console.warn(
+      "[email] No email provider configured (Resend/SMTP), skipping email send"
+    );
     return;
   }
 
@@ -46,7 +72,7 @@ export async function sendEmail({
       html,
     });
   } catch (error) {
-    console.error("[email] Failed to send email", error);
+    console.error("[email] Failed to send email via SMTP", error);
   }
 }
 
@@ -102,39 +128,72 @@ export async function sendWorkOrderAssignedEmail(options: {
   });
 }
 
+/** Sent to the user who submitted the request (confirmation). */
+export async function sendRequestSubmissionConfirmationEmail(options: {
+  toEmail: string;
+  requestId: string;
+  requestNumber?: number | null;
+  title?: string;
+  storeName?: string;
+}): Promise<void> {
+  const { toEmail, requestId, requestNumber, title, storeName } = options;
+  const displayId =
+    requestNumber != null ? String(requestNumber).padStart(4, "0") : requestId;
+  const lines: string[] = [];
+  lines.push("<p>Your maintenance request has been submitted successfully.</p>");
+  lines.push(`<p><strong>Request ID:</strong> #${displayId}</p>`);
+  if (title) lines.push(`<p><strong>Title:</strong> ${title}</p>`);
+  if (storeName) lines.push(`<p><strong>Store:</strong> ${storeName}</p>`);
+  lines.push(
+    "<p>An administrator will review your request and you will be notified by email.</p>"
+  );
+  await sendEmail({
+    to: toEmail,
+    subject: `Maintenance Request Submitted (#${displayId})`,
+    html: lines.join(""),
+  });
+}
+
+/** Sent to each admin / master admin when a new request is submitted. */
 export async function sendRequestSubmittedEmail(options: {
   storeAdminEmail: string;
   requesterName?: string;
+  requesterEmail?: string;
   storeName?: string;
   requestId: string;
+  requestNumber?: number | null;
   summary?: string;
 }): Promise<void> {
-  const { storeAdminEmail, requesterName, storeName, requestId, summary } =
-    options;
-
+  const {
+    storeAdminEmail,
+    requesterName,
+    requesterEmail,
+    storeName,
+    requestId,
+    requestNumber,
+    summary,
+  } = options;
+  const displayId =
+    requestNumber != null ? String(requestNumber).padStart(4, "0") : requestId;
   const lines: string[] = [];
-
   lines.push("<p>A new maintenance request has been submitted.</p>");
-  lines.push(`<p><strong>Request ID:</strong> ${requestId}</p>`);
-
-  if (requesterName) {
-    lines.push(`<p><strong>Requester:</strong> ${requesterName}</p>`);
+  lines.push(`<p><strong>Request ID:</strong> #${displayId}</p>`);
+  if (requesterEmail) {
+    lines.push(`<p><strong>Submitted by:</strong> ${requesterEmail}</p>`);
   }
-
+  if (requesterName && requesterName !== requesterEmail) {
+    lines.push(`<p><strong>Requester name:</strong> ${requesterName}</p>`);
+  }
   if (storeName) {
     lines.push(`<p><strong>Store:</strong> ${storeName}</p>`);
   }
-
   if (summary) {
     lines.push(`<p><strong>Summary:</strong> ${summary}</p>`);
   }
-
-  const html = lines.join("");
-
   await sendEmail({
     to: storeAdminEmail,
-    subject: `New Maintenance Request (#${requestId})`,
-    html,
+    subject: `New Maintenance Request (#${displayId})`,
+    html: lines.join(""),
   });
 }
 
@@ -181,6 +240,84 @@ export async function sendWorkOrderUpdateEmail(options: {
     to: userEmail,
     subject: `Work Order Updated (#${workOrderId})`,
     html,
+  });
+}
+
+export async function sendRequestApprovedEmail(options: {
+  toEmail: string;
+  requestId: string;
+  requestNumber?: number | null;
+  title?: string;
+}): Promise<void> {
+  const { toEmail, requestId, requestNumber, title } = options;
+  const displayId = requestNumber != null ? String(requestNumber).padStart(4, "0") : requestId;
+  const lines: string[] = [];
+  lines.push("<p>Your maintenance request has been approved.</p>");
+  lines.push(`<p><strong>Request ID:</strong> ${displayId}</p>`);
+  if (title) lines.push(`<p><strong>Title:</strong> ${title}</p>`);
+  await sendEmail({
+    to: toEmail,
+    subject: `Maintenance Request Approved (#${displayId})`,
+    html: lines.join(""),
+  });
+}
+
+export async function sendRequestRejectedEmail(options: {
+  toEmail: string;
+  requestId: string;
+  requestNumber?: number | null;
+  title?: string;
+  reason: string;
+}): Promise<void> {
+  const { toEmail, requestId, requestNumber, title, reason } = options;
+  const displayId = requestNumber != null ? String(requestNumber).padStart(4, "0") : requestId;
+  const lines: string[] = [];
+  lines.push("<p>Your maintenance request has been rejected.</p>");
+  lines.push(`<p><strong>Request ID:</strong> ${displayId}</p>`);
+  if (title) lines.push(`<p><strong>Title:</strong> ${title}</p>`);
+  lines.push("<p><strong>Reason for rejection:</strong></p>");
+  lines.push(`<p>${reason || "No reason provided."}</p>`);
+  await sendEmail({
+    to: toEmail,
+    subject: `Maintenance Request Rejected (#${displayId})`,
+    html: lines.join(""),
+  });
+}
+
+export async function sendWorkOrderApprovedEmail(options: {
+  toEmail: string;
+  workOrderId: string;
+  title?: string;
+}): Promise<void> {
+  const { toEmail, workOrderId, title } = options;
+  const lines: string[] = [];
+  lines.push("<p>Your work order has been accepted and marked as completed.</p>");
+  lines.push(`<p><strong>Work Order ID:</strong> ${workOrderId}</p>`);
+  if (title) lines.push(`<p><strong>Title:</strong> ${title}</p>`);
+  await sendEmail({
+    to: toEmail,
+    subject: `Work Order Accepted (#${workOrderId})`,
+    html: lines.join(""),
+  });
+}
+
+export async function sendWorkOrderRejectedEmail(options: {
+  toEmail: string;
+  workOrderId: string;
+  title?: string;
+  reason: string;
+}): Promise<void> {
+  const { toEmail, workOrderId, title, reason } = options;
+  const lines: string[] = [];
+  lines.push("<p>Your work order submission has been reviewed and sent back for changes.</p>");
+  lines.push(`<p><strong>Work Order ID:</strong> ${workOrderId}</p>`);
+  if (title) lines.push(`<p><strong>Title:</strong> ${title}</p>`);
+  lines.push("<p><strong>Reason:</strong></p>");
+  lines.push(`<p>${reason || "No reason provided."}</p>`);
+  await sendEmail({
+    to: toEmail,
+    subject: `Work Order Returned for Changes (#${workOrderId})`,
+    html: lines.join(""),
   });
 }
 

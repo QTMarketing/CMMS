@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import BulkImportDrawer from "@/components/BulkImportDrawer";
 import AddAssetDrawer from "@/app/assets/components/AddAssetDrawer";
 import AddInventoryDrawer from "@/app/inventory/components/AddInventoryDrawer";
@@ -67,6 +67,7 @@ type Props = {
   requests: Request[];
   schedules: Schedule[];
   purchaseOrders?: PurchaseOrder[];
+  initialTab?: string;
 };
 
 const tabs = ["Assets", "Parts", "Requests", "Preventive Maintenance", "Purchase Orders"] as const;
@@ -78,10 +79,21 @@ export default function StoreDetailTabs({
   requests,
   schedules,
   purchaseOrders = [],
+  initialTab,
 }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] =
-    useState<(typeof tabs)[number]>("Assets");
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams?.get("tab") || undefined;
+  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>(
+    (initialTab && tabs.includes(initialTab as any)) ? (initialTab as (typeof tabs)[number]) : "Assets"
+  );
+
+  // Sync tab when URL ?tab= changes (e.g. from StoreTree links)
+  useEffect(() => {
+    if (tabFromUrl && tabs.includes(tabFromUrl as any)) {
+      setActiveTab(tabFromUrl as (typeof tabs)[number]);
+    }
+  }, [tabFromUrl]);
 
   const locationLabel =
     (store.city && store.state

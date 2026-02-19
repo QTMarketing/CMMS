@@ -3,15 +3,21 @@ import { getServerSession } from "next-auth";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import { isMasterAdmin } from "@/lib/roles";
+import { isAdminLike, isMasterAdmin } from "@/lib/roles";
 
+/**
+ * GET /api/stores/:id
+ * Returns a single store with related: Assets, Parts (inventory), PM Schedules,
+ * Work Orders, and Work Order History (notes on work orders).
+ */
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
+  const role = (session?.user as any)?.role as string | undefined;
 
-  if (!session || !isMasterAdmin((session.user as any)?.role)) {
+  if (!session || !isAdminLike(role)) {
     return NextResponse.json(
       { success: false, error: "Forbidden" },
       { status: 403 }
@@ -22,6 +28,24 @@ export async function GET(
 
   const store = await prisma.store.findUnique({
     where: { id },
+    include: {
+      district: true,
+      categories: { select: { id: true, name: true, color: true } },
+      assets: { orderBy: { name: "asc" } },
+      inventoryItems: { orderBy: { name: "asc" } },
+      pmSchedules: {
+        orderBy: { nextDueDate: "asc" },
+        include: { asset: { select: { id: true, name: true } } },
+      },
+      workOrders: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          asset: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, name: true } },
+          notes: { orderBy: { timestamp: "desc" } },
+        },
+      },
+    },
   });
 
   if (!store) {

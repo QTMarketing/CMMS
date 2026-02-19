@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
+import {
+  sendRequestSubmissionConfirmationEmail,
+  sendRequestSubmittedEmail,
+} from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +65,7 @@ export default async function RequestPage({ searchParams }: RequestPageProps) {
       redirect("/request");
     }
 
-    const createdByEmail = session.user?.email ?? null;
+    const createdByEmail = (session.user as { email?: string | null })?.email ?? null;
     const createdBy =
       createdByEmail ||
       (session.user as { name?: string | null })?.name ||
@@ -83,7 +87,13 @@ export default async function RequestPage({ searchParams }: RequestPageProps) {
       }
     }
 
-    await prisma.request.create({
+    const lastRequest = await prisma.request.findFirst({
+      orderBy: { requestNumber: "desc" },
+      select: { requestNumber: true },
+    });
+    const nextRequestNumber = (lastRequest?.requestNumber ?? 0) + 1;
+
+    const newRequest = await prisma.request.create({
       data: {
         title,
         description,
@@ -92,8 +102,52 @@ export default async function RequestPage({ searchParams }: RequestPageProps) {
         assetId,
         createdBy,
         storeId,
+        requestNumber: nextRequestNumber,
       },
     });
+
+    try {
+      const store = storeId
+        ? await prisma.store.findUnique({
+            where: { id: storeId },
+            select: { name: true },
+          })
+        : null;
+      if (createdByEmail?.trim()) {
+        await sendRequestSubmissionConfirmationEmail({
+          toEmail: createdByEmail.trim(),
+          requestId: newRequest.id,
+          requestNumber: newRequest.requestNumber,
+          title: newRequest.title,
+          storeName: store?.name ?? undefined,
+        });
+      }
+      const admins = await prisma.user.findMany({
+        where: {
+          OR: [
+            { role: "MASTER_ADMIN" },
+            ...(storeId ? [{ role: { in: ["STORE_ADMIN", "ADMIN"] }, storeId }] : []),
+          ],
+        },
+        select: { email: true },
+      });
+      const requesterName = (session.user as { name?: string | null })?.name;
+      for (const admin of admins) {
+        if (admin.email) {
+          await sendRequestSubmittedEmail({
+            storeAdminEmail: admin.email,
+            requesterEmail: createdByEmail ?? undefined,
+            requesterName: typeof requesterName === "string" ? requesterName : undefined,
+            storeName: store?.name ?? undefined,
+            requestId: newRequest.id,
+            requestNumber: newRequest.requestNumber,
+            summary: newRequest.title,
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[request page] Failed to send submission emails", e);
+    }
 
     redirect("/request?submitted=1");
   }

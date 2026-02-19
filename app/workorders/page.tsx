@@ -96,6 +96,10 @@ export default function WorkOrdersPage() {
     useState<(typeof priorityOptions)[number]>("All");
   const [search, setSearch] = useState<string>("");
 
+  type SortByField = "createdAt" | "title" | "status" | "priority" | "dueDate";
+  const [sortBy, setSortBy] = useState<SortByField>("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
   const [selected, setSelected] = useState<WorkOrder | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
@@ -292,11 +296,26 @@ export default function WorkOrdersPage() {
     );
   }
 
-  // Sort newest first
-  visibleRows.sort((a, b) => {
-    const ad = a.createdAt ? new Date(a.createdAt) : new Date(0);
-    const bd = b.createdAt ? new Date(b.createdAt) : new Date(0);
-    return bd.getTime() - ad.getTime();
+  // Sort by selected field and order
+  visibleRows = [...visibleRows].sort((a, b) => {
+    let cmp = 0;
+    if (sortBy === "createdAt") {
+      const ad = a.createdAt ? new Date(a.createdAt as any) : new Date(0);
+      const bd = b.createdAt ? new Date(b.createdAt as any) : new Date(0);
+      cmp = ad.getTime() - bd.getTime();
+    } else if (sortBy === "title") {
+      cmp = (a.title || "").localeCompare(b.title || "");
+    } else if (sortBy === "status") {
+      cmp = (a.status || "").localeCompare(b.status || "");
+    } else if (sortBy === "priority") {
+      const order = { High: 3, Medium: 2, Low: 1 };
+      cmp = (order[a.priority as keyof typeof order] ?? 0) - (order[b.priority as keyof typeof order] ?? 0);
+    } else if (sortBy === "dueDate") {
+      const ad = a.dueDate ? new Date(a.dueDate as any) : new Date(0);
+      const bd = b.dueDate ? new Date(b.dueDate as any) : new Date(0);
+      cmp = ad.getTime() - bd.getTime();
+    }
+    return sortOrder === "asc" ? cmp : -cmp;
   });
 
   // --- Header metrics & search items for DashboardHeader ---
@@ -417,8 +436,29 @@ export default function WorkOrdersPage() {
           />
         </div>
 
-        {/* Filter buttons */}
+        {/* Sort + filter buttons */}
         <div className="flex flex-wrap items-center justify-end gap-2 text-sm">
+          <span className="text-slate-500">Sort:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortByField)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="createdAt">Date created</option>
+            <option value="title">Title</option>
+            <option value="status">Status</option>
+            <option value="priority">Priority</option>
+            <option value="dueDate">Due date</option>
+          </select>
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            <option value="desc">Descending</option>
+            <option value="asc">Ascending</option>
+          </select>
+
           {/* Status filter */}
           <button
             type="button"

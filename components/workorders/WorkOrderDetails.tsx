@@ -758,6 +758,13 @@ export default function WorkOrderDetails({
                   <WorkOrderStatusControls
                     workOrderId={workOrder.id}
                     initialStatus={workOrder.status}
+                    refinementData={{
+                      title: workOrder.title,
+                      description: (workOrder as any).description ?? undefined,
+                      assetId: (workOrder as any).asset?.id ?? (workOrder as any).assetId ?? undefined,
+                      storeId: (workOrder as any).storeId ?? undefined,
+                    }}
+                    onAccepted={refreshWorkOrder}
                   />
                 ) : (
                   <div className="flex items-center gap-2">
@@ -812,6 +819,7 @@ export default function WorkOrderDetails({
                   <WorkOrderAssigneeControl
                     workOrderId={workOrder.id}
                     initialAssigneeId={workOrder.assignedToId}
+                    onAssigned={refreshWorkOrder}
                   />
                 ) : (
                   <p className="text-sm font-medium text-slate-900">
