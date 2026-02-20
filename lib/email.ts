@@ -129,6 +129,21 @@ export async function sendWorkOrderAssignedEmail(options: {
     lines.push(`<p><strong>Description:</strong> ${description}</p>`);
   }
 
+  // Build a direct link to the work order in the web app.
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.NEXTAUTH_URL ||
+    "https://cmms-theta.vercel.app";
+  const normalizedBase = baseUrl.replace(/\/+$/, "");
+  const workOrderUrl = `${normalizedBase}/workorders/${workOrderId}`;
+
+  lines.push(
+    `<p><a href="${workOrderUrl}" style="display:inline-block;padding:8px 14px;margin-top:8px;border-radius:6px;background-color:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;">View Work Order</a></p>`
+  );
+  lines.push(
+    `<p style="font-size:12px;color:#6b7280;">If the button above does not work, copy and paste this link into your browser:<br /><a href="${workOrderUrl}">${workOrderUrl}</a></p>`
+  );
+
   const html = lines.join("");
 
   return sendEmail({
