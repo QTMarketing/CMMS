@@ -161,7 +161,11 @@ export async function POST(req: NextRequest) {
       return defaultStoreId;
     }
 
-    const result = { created: 0, skipped: 0, errors: [] as { row: number; email: string; message: string } };
+    const result: {
+      created: number;
+      skipped: number;
+      errors: { row: number; email: string; message: string }[];
+    } = { created: 0, skipped: 0, errors: [] };
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     for (let i = 0; i < rows.length; i++) {
