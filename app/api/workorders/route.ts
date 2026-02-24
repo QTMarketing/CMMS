@@ -123,6 +123,15 @@ export async function GET(req: NextRequest) {
             email: true,
           },
         },
+        store: {
+          select: {
+            name: true,
+            address: true,
+            city: true,
+            state: true,
+            zipCode: true,
+          },
+        },
       },
     });
     return NextResponse.json({ success: true, data: result });

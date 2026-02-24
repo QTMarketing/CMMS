@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, active, storeId: rawStoreId, password } = body ?? {};
+    const { name, email, phone, active, storeId: rawStoreId, password, serviceOn, note } = body ?? {};
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
@@ -182,6 +182,8 @@ export async function POST(request: Request) {
         name: name.trim(),
         email: email.trim(),
         phone: phone && typeof phone === "string" ? phone.trim() : null,
+        serviceOn: serviceOn && typeof serviceOn === "string" ? serviceOn.trim() || null : null,
+        note: note && typeof note === "string" ? note.trim() || null : null,
         active: typeof active === "boolean" ? active : true,
         storeId: store.id,
       },

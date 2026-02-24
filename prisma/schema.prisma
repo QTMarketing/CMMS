@@ -51,6 +51,10 @@ model Vendor {
   name   String
   email  String
   phone  String?
+  /// Service(s) the vendor provides (e.g. Electrical, HVAC) – entered by admin.
+  serviceOn String?
+  /// Admin notes about the vendor.
+  note   String?
   active Boolean @default(true)
   status String  @default("offline") // "offline" | "online" | "work_assigned"
 

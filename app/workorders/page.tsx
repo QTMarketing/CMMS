@@ -58,6 +58,22 @@ function formatDate(date: DateInput) {
   return d.toLocaleDateString();
 }
 
+/** Work order location: use stored location or build from store address. */
+function getWorkOrderLocation(w: WorkOrder & { location?: string | null; store?: { name?: string; address?: string | null; city?: string | null; state?: string | null; zipCode?: string | null } | null }): string {
+  if (w.location && String(w.location).trim()) return String(w.location).trim();
+  const store = w.store;
+  if (!store) return "";
+  const parts: string[] = [];
+  if (store.name) parts.push(store.name);
+  if (store.address) parts.push(store.address);
+  const cityStateZip: string[] = [];
+  if (store.city) cityStateZip.push(store.city);
+  if (store.state) cityStateZip.push(store.state);
+  if (store.zipCode) cityStateZip.push(store.zipCode);
+  if (cityStateZip.length) parts.push(cityStateZip.join(", "));
+  return parts.join(" • ") || "";
+}
+
 export default function WorkOrdersPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
@@ -524,6 +540,7 @@ export default function WorkOrdersPage() {
                 <th className="p-4 font-medium">Priority</th>
                 <th className="p-4 font-medium">Assigned To</th>
                 <th className="p-4 font-medium">Asset</th>
+                <th className="p-4 font-medium">Location</th>
                 <th className="p-4 font-medium">Due Date</th>
                 <th className="p-4" />
               </tr>
@@ -532,7 +549,7 @@ export default function WorkOrdersPage() {
               {visibleRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-4 py-8 text-center text-slate-400"
                   >
                     No work orders found.
@@ -588,6 +605,9 @@ export default function WorkOrdersPage() {
                     </td>
                     <td className="p-4 align-top text-slate-600">
                       {w.assetId ? (assetMap[w.assetId]?.name || w.assetId) : "—"}
+                    </td>
+                    <td className="p-4 align-top text-slate-600 max-w-[200px] truncate" title={getWorkOrderLocation(w)}>
+                      {getWorkOrderLocation(w) || "—"}
                     </td>
                     <td className="p-4 align-top text-slate-600">
                       {formatDate(w.dueDate)}

@@ -13,6 +13,7 @@ import {
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 import StoreFilter from "@/components/StoreFilter";
 import ToggleTechnicianActive from "./components/ToggleTechnicianActive";
+import ImportVendorsButton from "./components/ImportVendorsButton";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ type VendorWithWorkOrders = Prisma.VendorGetPayload<{
   include: {
     workOrders: true;
     users: true;
+    store: { select: { id: true; name: true; code: true } };
   };
 }>;
 
@@ -81,6 +83,15 @@ export default async function TechniciansPage({
 
   const techWhere: Prisma.VendorWhereInput = {};
 
+  // Location-wise: filter by store so you can search vendors for a certain store
+  if (isMaster) {
+    if (selectedStoreId) {
+      techWhere.storeId = selectedStoreId;
+    }
+  } else if (userStoreId) {
+    techWhere.storeId = userStoreId;
+  }
+
   if (searchQuery) {
     techWhere.OR = [
       { name: { contains: searchQuery, mode: "insensitive" } },
@@ -95,6 +106,7 @@ export default async function TechniciansPage({
     include: {
       workOrders: true,
       users: true,
+      store: { select: { id: true, name: true, code: true } },
     },
   });
 
@@ -117,10 +129,10 @@ export default async function TechniciansPage({
       <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-            Technician List
+            Vendor List
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage your team of technicians and their assignments.
+            Manage vendors by location. Filter by store to find vendors for a specific location.
           </p>
           <p className="text-xs text-gray-400 mt-0.5">
             Scope: {currentStoreName}
@@ -131,16 +143,23 @@ export default async function TechniciansPage({
             <StoreFilter
               stores={stores}
               selectedStoreId={selectedStoreId ?? null}
-              label="Store"
+              label="Location (store)"
             />
           )}
           {isAdminLike(role) && !isTechnicianRole(role) && (
-            <Link
-              href="/technicians/new"
-              className="inline-flex items-center rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
-            >
-              Add Technician
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <ImportVendorsButton
+                stores={stores}
+                isMaster={isMaster}
+                defaultStoreId={selectedStoreId ?? null}
+              />
+              <Link
+                href={selectedStoreId ? `/technicians/new?storeId=${selectedStoreId}` : "/technicians/new"}
+                className="inline-flex items-center rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600"
+              >
+                Add Vendor
+              </Link>
+            </div>
           )}
         </div>
       </header>
@@ -158,7 +177,7 @@ export default async function TechniciansPage({
               name="q"
               defaultValue={searchQuery}
               className="w-full bg-gray-50 border border-gray-300 rounded pl-10 pr-4 py-2 text-sm focus:ring-emerald-500 focus:border-emerald-500"
-              placeholder="Search technicians by name, email, or phone..."
+              placeholder="Search vendors by name, email, or phone..."
               type="text"
             />
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
@@ -187,7 +206,7 @@ export default async function TechniciansPage({
 
         {technicians.length === 0 ? (
           <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 bg-white">
-            No technicians found.
+            No vendors found. Try another store or search.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -195,22 +214,19 @@ export default async function TechniciansPage({
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Technician ID
+                    Vendor Name
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Full Name
+                    Service on
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Primary Skill
+                    Email
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
+                    Phone
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Work Orders
+                    Note
                   </th>
                   <th className="relative px-6 py-3">
                     <span className="sr-only">Actions</span>
@@ -219,38 +235,24 @@ export default async function TechniciansPage({
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {technicians.map((tech: VendorWithWorkOrders) => {
-                  const openCount = tech.workOrders.filter(
-                    (wo) =>
-                      wo.status !== "Completed" && wo.status !== "Cancelled"
-                  ).length;
-
-                  const statusLabel = tech.active ? "Available" : "Inactive";
-                  const statusClasses = tech.active
-                    ? "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
-                    : "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700";
-
                   return (
                     <tr key={tech.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {tech.id}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {tech.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {/* No primary skill field yet; placeholder */}
-                        —
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={statusClasses}>{statusLabel}</span>
+                        {tech.serviceOn ?? "—"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {tech.email}
-                        <br />
-                        {tech.phone ?? "—"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {openCount} open / {tech.workOrders.length} total
+                        {tech.phone ?? "—"}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 max-w-xs">
+                        <span className="line-clamp-2" title={tech.note ?? undefined}>
+                          {tech.note ?? "—"}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <ToggleTechnicianActive

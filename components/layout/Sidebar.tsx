@@ -9,7 +9,7 @@ const allNavItems = [
   { name: "Dashboard", href: "/" },
   { name: "Work Orders", href: "/workorders" },
   { name: "Preventive Maintenance Schedules", href: "/pm" },
-  { name: "Technicians", href: "/technicians" },
+  { name: "Vendor", href: "/technicians" },
   { name: "Requests", href: "/requests" },
   { name: "Locations", href: "/stores" },
   { name: "Users", href: "/users" },

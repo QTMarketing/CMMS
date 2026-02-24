@@ -78,6 +78,9 @@ export default async function RequestsPage({
     }
   }
 
+  // Exclude converted requests – they appear in Work Orders as "Request: ..."
+  where.status = { not: "Converted" };
+
   if (searchQuery) {
     where.OR = [
       { id: { contains: searchQuery, mode: "insensitive" } },
