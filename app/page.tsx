@@ -123,6 +123,17 @@ export default async function DashboardPage() {
               name: true,
             },
           },
+          store: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              address: true,
+              city: true,
+              state: true,
+              zipCode: true,
+            },
+          },
         },
       }),
       prisma.asset.findMany({
@@ -443,10 +454,10 @@ export default async function DashboardPage() {
               Upcoming Maintenance Schedules
             </h3>
             <Link
-              href="/schedules"
+              href="/pm"
               className="text-sm font-medium text-slate-500 hover:text-indigo-600"
             >
-              View all
+              View all preventive schedules
             </Link>
           </div>
           {upcomingMaintenances.length === 0 ? (
@@ -487,85 +498,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent Activities table */}
-      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-900">
-            Recent Activities
-          </h3>
-          <Link
-            href="/workorders"
-            className="text-sm font-medium text-slate-500 hover:text-indigo-600"
-          >
-            See All
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-slate-500">
-                <th className="px-2 py-3 font-medium">Task / Asset</th>
-                <th className="px-2 py-3 font-medium">Assigned To</th>
-                <th className="px-2 py-3 font-medium">Status</th>
-                <th className="px-2 py-3 font-medium">Due Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-2 py-6 text-center text-slate-400"
-                  >
-                    No recent activities.
-                  </td>
-                </tr>
-              ) : (
-                recent.map((w: any) => (
-                  <tr
-                    key={w.id}
-                    className="border-b border-slate-200 last:border-0"
-                  >
-                    <td className="px-2 py-4 font-medium text-slate-900">
-                      {w.title}
-                    </td>
-                    <td className="px-2 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">
-                          {(w?.assignedToName || "U")
-                            .charAt(0)
-                            .toUpperCase()}
-                        </div>
-                        <span className="text-slate-700">
-                          {w?.assignedToName || "Unassigned"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-2 py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          w.status === "Completed"
-                            ? "bg-emerald-100 text-emerald-800"
-                            : w.status === "Open"
-                            ? "bg-amber-100 text-amber-800"
-                            : w.status === "In Progress"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-slate-100 text-slate-700"
-                        }`}
-                      >
-                        {w.status}
-                      </span>
-                    </td>
-                    <td className="px-2 py-4 text-slate-500">
-                      {formatDate(w.dueDate)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }

@@ -151,7 +151,6 @@ export default async function TechniciansPage({
               <ImportVendorsButton
                 stores={stores}
                 isMaster={isMaster}
-                defaultStoreId={selectedStoreId ?? null}
               />
               <Link
                 href={selectedStoreId ? `/technicians/new?storeId=${selectedStoreId}` : "/technicians/new"}

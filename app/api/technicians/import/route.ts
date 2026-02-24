@@ -100,7 +100,10 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const defaultStoreIdParam = (formData.get("storeId") as string)?.trim() || null;
+    const rawStoreIds = (formData.getAll("storeIds") as string[] | null) ?? [];
+    const selectedStoreIds = rawStoreIds
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter((v) => v.length > 0);
 
     if (!file) {
       return NextResponse.json(
@@ -133,7 +136,7 @@ export async function POST(req: NextRequest) {
     }
 
     const isMaster = isMasterAdmin(role);
-    const defaultStoreId = isMaster ? defaultStoreIdParam : userStoreId;
+    const defaultStoreId = isMaster ? null : userStoreId;
 
     if (!isMaster && !userStoreId) {
       return NextResponse.json(
@@ -148,6 +151,11 @@ export async function POST(req: NextRequest) {
     const storeById = new Map(stores.map((s) => [s.id, s]));
     const storeByCode = new Map(stores.filter((s) => s.code).map((s) => [s.code!.toLowerCase().trim(), s]));
     const storeByName = new Map(stores.map((s) => [s.name.toLowerCase().trim(), s]));
+
+    const globalStoreIds =
+      isMaster && selectedStoreIds.length > 0
+        ? selectedStoreIds.filter((id) => storeById.has(id))
+        : null;
 
     function resolveStoreId(row: ImportRow): string | null {
       if (row.storeId && storeById.has(row.storeId)) return row.storeId;
@@ -178,52 +186,84 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const storeId = resolveStoreId(row);
-      if (!storeId) {
+      const emailTrimmed = row.email.trim();
+
+      // If no global stores selected, resolve one store per row (existing behavior)
+      const perRowStoreId = !globalStoreIds ? resolveStoreId(row) : null;
+
+      if (!globalStoreIds && !perRowStoreId) {
         result.errors.push({
           row: rowNum,
           email: row.email,
-          message: "Could not determine store. Set a default store or include Store/Store Code in the file.",
+          message: "Could not determine store. Include Store or Store Code in the file.",
         });
-        result.skipped++;
-        continue;
-      }
-
-      const existingVendor = await prisma.vendor.findFirst({
-        where: { email: row.email.trim() },
-      });
-      if (existingVendor) {
-        result.errors.push({ row: rowNum, email: row.email, message: "Vendor with this email already exists." });
         result.skipped++;
         continue;
       }
 
       const existingUser = await prisma.user.findUnique({
-        where: { email: row.email.trim() },
+        where: { email: emailTrimmed },
       });
       if (existingUser) {
-        result.errors.push({ row: rowNum, email: row.email, message: "A user account with this email already exists." });
+        result.errors.push({
+          row: rowNum,
+          email: row.email,
+          message: "A user account with this email already exists.",
+        });
         result.skipped++;
         continue;
       }
 
-      try {
-        await prisma.vendor.create({
-          data: {
-            id: crypto.randomUUID(),
-            name: row.name.trim(),
-            email: row.email.trim(),
-            phone: row.phone?.trim() || null,
-            serviceOn: row.serviceOn?.trim() || null,
-            note: row.note?.trim() || null,
-            active: true,
-            storeId,
-          },
+      const targetStoreIds =
+        globalStoreIds && globalStoreIds.length > 0
+          ? globalStoreIds
+          : perRowStoreId
+          ? [perRowStoreId]
+          : [];
+
+      if (targetStoreIds.length === 0) {
+        result.errors.push({
+          row: rowNum,
+          email: row.email,
+          message: "No valid stores found for this vendor.",
         });
-        result.created++;
-      } catch (err) {
-        result.errors.push({ row: rowNum, email: row.email, message: (err as Error).message });
         result.skipped++;
+        continue;
+      }
+
+      for (const storeId of targetStoreIds) {
+        // Skip if this vendor already exists in this specific store
+        const existingVendor = await prisma.vendor.findFirst({
+          where: { email: emailTrimmed, storeId },
+        });
+        if (existingVendor) {
+          result.errors.push({
+            row: rowNum,
+            email: row.email,
+            message: "Vendor with this email already exists in this store.",
+          });
+          result.skipped++;
+          continue;
+        }
+
+        try {
+          await prisma.vendor.create({
+            data: {
+              id: crypto.randomUUID(),
+              name: row.name.trim(),
+              email: emailTrimmed,
+              phone: row.phone?.trim() || null,
+              serviceOn: row.serviceOn?.trim() || null,
+              note: row.note?.trim() || null,
+              active: true,
+              storeId,
+            },
+          });
+          result.created++;
+        } catch (err) {
+          result.errors.push({ row: rowNum, email: row.email, message: (err as Error).message });
+          result.skipped++;
+        }
       }
     }
 

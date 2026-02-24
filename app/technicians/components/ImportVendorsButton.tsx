@@ -8,18 +8,17 @@ type StoreOption = { id: string; name: string; code?: string | null };
 type Props = {
   stores: StoreOption[];
   isMaster: boolean;
-  defaultStoreId?: string | null;
 };
 
 export default function ImportVendorsButton({
   stores,
   isMaster,
-  defaultStoreId,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [storeId, setStoreId] = useState(defaultStoreId ?? "");
+  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
+  const [applyAllStores, setApplyAllStores] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
     created: number;
@@ -35,7 +34,8 @@ export default function ImportVendorsButton({
     setFile(null);
     setResult(null);
     setError(null);
-    setStoreId(defaultStoreId ?? "");
+    setSelectedStoreIds([]);
+    setApplyAllStores(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,8 +44,8 @@ export default function ImportVendorsButton({
       setError("Please select an Excel or XML file.");
       return;
     }
-    if (isMaster && stores.length > 0 && !storeId) {
-      setError("Please select a default store for vendors that don't have a store in the file.");
+    if (isMaster && !applyAllStores && selectedStoreIds.length === 0) {
+      setError("Select at least one store or choose to add vendors for all stores.");
       return;
     }
 
@@ -56,7 +56,12 @@ export default function ImportVendorsButton({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      if (storeId) formData.append("storeId", storeId);
+      if (isMaster) {
+        const idsToSend = applyAllStores
+          ? stores.map((s) => s.id)
+          : selectedStoreIds;
+        idsToSend.forEach((id) => formData.append("storeIds", id));
+      }
 
       const res = await fetch("/api/technicians/import", {
         method: "POST",
@@ -121,21 +126,65 @@ export default function ImportVendorsButton({
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {isMaster && stores.length > 0 && (
-                  <label className="block">
-                    <span className="text-sm font-medium text-gray-700">Default store (for rows without store)</span>
-                    <select
-                      value={storeId}
-                      onChange={(e) => setStoreId(e.target.value)}
-                      className="mt-1 block w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 focus:ring-emerald-500 focus:border-emerald-500"
-                    >
-                      <option value="">Select store...</option>
-                      {stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.code ? `${s.name} (${s.code})` : s.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="apply-all-stores"
+                        type="checkbox"
+                        checked={applyAllStores}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setApplyAllStores(checked);
+                          if (checked) {
+                            setSelectedStoreIds(stores.map((s) => s.id));
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <label
+                        htmlFor="apply-all-stores"
+                        className="text-sm font-medium text-gray-700"
+                      >
+                        Add vendors for all stores
+                      </label>
+                    </div>
+                    {!applyAllStores && (
+                      <div>
+                        <p className="text-xs font-medium text-gray-700 mb-1">
+                          Stores (locations)
+                        </p>
+                        <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm text-gray-900">
+                          {stores.map((s) => {
+                            const checked = selectedStoreIds.includes(s.id);
+                            return (
+                              <label
+                                key={s.id}
+                                className="flex items-center gap-2 py-1 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedStoreIds((prev) => [...prev, s.id]);
+                                    } else {
+                                      setSelectedStoreIds((prev) =>
+                                        prev.filter((id) => id !== s.id)
+                                      );
+                                    }
+                                  }}
+                                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <span>
+                                  {s.code ? `${s.name} (${s.code})` : s.name}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 <label className="block">

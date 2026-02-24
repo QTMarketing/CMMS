@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import bcrypt from "bcryptjs";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
@@ -79,7 +78,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, active, storeId: rawStoreId, password, serviceOn, note } = body ?? {};
+    const { name, email, phone, active, storeId: rawStoreId, serviceOn, note } = body ?? {};
 
     if (!name || typeof name !== "string" || !name.trim()) {
       return NextResponse.json(
@@ -99,20 +98,6 @@ export async function POST(request: Request) {
     if (!emailPattern.test(email.trim())) {
       return NextResponse.json(
         { success: false, error: "Invalid email address." },
-        { status: 400 }
-      );
-    }
-
-    if (!password || typeof password !== "string" || !password.trim()) {
-      return NextResponse.json(
-        { success: false, error: "Password is required." },
-        { status: 400 }
-      );
-    }
-
-    if (password.trim().length < 6) {
-      return NextResponse.json(
-        { success: false, error: "Password must be at least 6 characters." },
         { status: 400 }
       );
     }
@@ -174,7 +159,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create vendor first
+    // Create vendor without login account; logins can be created later via the dedicated endpoint.
     const vendorId = crypto.randomUUID();
     const newVendor = await prisma.vendor.create({
       data: {
@@ -186,18 +171,6 @@ export async function POST(request: Request) {
         note: note && typeof note === "string" ? note.trim() || null : null,
         active: typeof active === "boolean" ? active : true,
         storeId: store.id,
-      },
-    });
-
-    // Create user account for login
-    const hashedPassword = await bcrypt.hash(password.trim(), 10);
-    await prisma.user.create({
-      data: {
-        email: email.trim(),
-        password: hashedPassword,
-        role: "VENDOR",
-        storeId: store.id,
-        vendorId: vendorId,
       },
     });
 
