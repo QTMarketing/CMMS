@@ -12,6 +12,9 @@ type ImportRow = {
   phone?: string | null;
   serviceOn?: string | null;
   note?: string | null;
+  vendorId?: string | null;
+  contact?: string | null;
+  address?: string | null;
   storeCodeOrName?: string | null;
   storeId?: string | null;
 };
@@ -28,8 +31,9 @@ function rowFromSheetRow(row: Record<string, unknown>): ImportRow | null {
     if (v !== undefined && v !== null) byKey[normalizeHeader(k)] = String(v).trim();
   });
 
-  const name = byKey["name"] ?? byKey["vendor's name"] ?? byKey["vendor name"];
-  const email = byKey["email"];
+  const name =
+    byKey["vendor name"] ?? byKey["vendor's name"] ?? byKey["name"] ?? byKey["vendor"];
+  const email = byKey["vendor email"] ?? byKey["email"];
   if (!name || !email) return null;
 
   return {
@@ -38,6 +42,9 @@ function rowFromSheetRow(row: Record<string, unknown>): ImportRow | null {
     phone: byKey["phone"] || null,
     serviceOn: byKey["service on"] ?? byKey["serviceon"] ?? null,
     note: byKey["note"] ?? null,
+    vendorId: byKey["vendor id"] ?? byKey["vendorid"] ?? null,
+    contact: byKey["contact"] ?? byKey["contact name"] ?? null,
+    address: byKey["address"] ?? byKey["vendor address"] ?? null,
     storeCodeOrName: byKey["store"] ?? byKey["store code"] ?? byKey["location"] ?? null,
     storeId: byKey["storeid"] ?? byKey["store id"] ?? null,
   };
@@ -180,6 +187,17 @@ export async function POST(req: NextRequest) {
       const row = rows[i];
       const rowNum = i + 2;
 
+    // Basic required-field validation for parsed rows
+    if (!row.name || !row.name.trim()) {
+      result.errors.push({
+        row: rowNum,
+        email: row.email,
+        message: "Vendor Name is required.",
+      });
+      result.skipped++;
+      continue;
+    }
+
       if (!emailPattern.test(row.email)) {
         result.errors.push({ row: rowNum, email: row.email, message: "Invalid email address." });
         result.skipped++;
@@ -247,6 +265,17 @@ export async function POST(req: NextRequest) {
         }
 
         try {
+          // Build a combined note that preserves any Vendor ID / Contact / Address
+          const parts: string[] = [];
+          if (row.note && row.note.trim()) parts.push(row.note.trim());
+          if (row.vendorId && row.vendorId.trim())
+            parts.push(`Vendor ID: ${row.vendorId.trim()}`);
+          if (row.contact && row.contact.trim())
+            parts.push(`Contact: ${row.contact.trim()}`);
+          if (row.address && row.address.trim())
+            parts.push(`Address: ${row.address.trim()}`);
+          const combinedNote = parts.length > 0 ? parts.join(" | ") : null;
+
           await prisma.vendor.create({
             data: {
               id: crypto.randomUUID(),
@@ -254,7 +283,7 @@ export async function POST(req: NextRequest) {
               email: emailTrimmed,
               phone: row.phone?.trim() || null,
               serviceOn: row.serviceOn?.trim() || null,
-              note: row.note?.trim() || null,
+              note: combinedNote,
               active: true,
               storeId,
             },

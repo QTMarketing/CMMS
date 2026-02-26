@@ -137,7 +137,10 @@ export default function ImportVendorsButton({
   const accept = ".xlsx,.xls,.xml";
   const formatHelp = (
     <div className="text-xs text-gray-500 mt-2 space-y-1">
-      <p><strong>Excel:</strong> First row = headers. Required: Name, Email. Optional: Phone, Service on, Note, Store (or Store Code).</p>
+      <p>
+        <strong>Excel:</strong> First row = headers. Required: Vendor Name, Vendor Email. Optional: Vendor ID,
+        Phone, Contact, Address, Service on, Note, Store (or Store Code).
+      </p>
       <p><strong>XML:</strong> &lt;vendors&gt;&lt;vendor&gt;&lt;name&gt;...&lt;/name&gt;&lt;email&gt;...&lt;/email&gt;...&lt;/vendor&gt;&lt;/vendors&gt;</p>
     </div>
   );
