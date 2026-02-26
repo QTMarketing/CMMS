@@ -149,7 +149,6 @@ export default async function TechniciansPage({
           {isAdminLike(role) && !isTechnicianRole(role) && (
             <div className="flex flex-wrap items-center gap-2">
               <ImportVendorsButton
-                stores={stores}
                 isMaster={isMaster}
               />
               <Link

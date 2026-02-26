@@ -1,23 +1,23 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 type StoreOption = { id: string; name: string; code?: string | null };
+type CategoryWithStores = { id: string; name: string; stores: StoreOption[] };
 
 type Props = {
-  stores: StoreOption[];
   isMaster: boolean;
 };
 
 export default function ImportVendorsButton({
-  stores,
   isMaster,
 }: Props) {
   const router = useRouter();
+  const [categories, setCategories] = useState<CategoryWithStores[]>([]);
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [applyAllStores, setApplyAllStores] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
@@ -29,12 +29,48 @@ export default function ImportVendorsButton({
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Load categories + their stores (we use categories as \"districts\").
+  useEffect(() => {
+    if (!isMaster) return;
+    fetch("/api/store-categories", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) {
+          console.error("Failed to fetch store categories for import:", res.status);
+          return null;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (!data || !data.success || !Array.isArray(data.data)) {
+          setCategories([]);
+          return;
+        }
+        const next: CategoryWithStores[] = (data.data as any[]).map((cat) => ({
+          id: cat.id,
+          name: cat.name,
+          stores: Array.isArray(cat.stores)
+            ? (cat.stores as any[]).map((s) => ({
+                id: s.id,
+                name: s.name,
+                code: s.code ?? null,
+              }))
+            : [],
+        }));
+        setCategories(next);
+        console.log("ImportVendorsButton loaded categories", next);
+      })
+      .catch((err) => {
+        console.error("Error loading store categories for import:", err);
+        setCategories([]);
+      });
+  }, [isMaster]);
+
   const handleClose = () => {
     setOpen(false);
     setFile(null);
     setResult(null);
     setError(null);
-    setSelectedStoreIds([]);
+    setSelectedCategoryIds([]);
     setApplyAllStores(false);
   };
 
@@ -44,8 +80,16 @@ export default function ImportVendorsButton({
       setError("Please select an Excel or XML file.");
       return;
     }
-    if (isMaster && !applyAllStores && selectedStoreIds.length === 0) {
-      setError("Select at least one store or choose to add vendors for all stores.");
+
+    const allStores: StoreOption[] = categories.flatMap((c) => c.stores);
+
+    if (
+      isMaster &&
+      allStores.length > 0 &&
+      !applyAllStores &&
+      selectedCategoryIds.length === 0
+    ) {
+      setError("Select at least one district (category) or choose to add vendors for all stores.");
       return;
     }
 
@@ -57,9 +101,12 @@ export default function ImportVendorsButton({
       const formData = new FormData();
       formData.append("file", file);
       if (isMaster) {
+        const allStores: StoreOption[] = categories.flatMap((c) => c.stores);
         const idsToSend = applyAllStores
-          ? stores.map((s) => s.id)
-          : selectedStoreIds;
+          ? allStores.map((s) => s.id)
+          : categories
+              .filter((c) => selectedCategoryIds.includes(c.id))
+              .flatMap((c) => c.stores.map((s) => s.id));
         idsToSend.forEach((id) => formData.append("storeIds", id));
       }
 
@@ -125,8 +172,8 @@ export default function ImportVendorsButton({
               </a>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                {isMaster && stores.length > 0 && (
-                  <div className="space-y-2">
+                {isMaster && categories.length > 0 && (
+                  <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <input
                         id="apply-all-stores"
@@ -136,7 +183,8 @@ export default function ImportVendorsButton({
                           const checked = e.target.checked;
                           setApplyAllStores(checked);
                           if (checked) {
-                            setSelectedStoreIds(stores.map((s) => s.id));
+                            // Selecting all stores via apply-all; clear per-category selection
+                            setSelectedCategoryIds([]);
                           }
                         }}
                         className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
@@ -149,34 +197,39 @@ export default function ImportVendorsButton({
                       </label>
                     </div>
                     {!applyAllStores && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-700 mb-1">
-                          Stores (locations)
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-gray-700">
+                          Select districts (categories)
                         </p>
-                        <div className="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm text-gray-900">
-                          {stores.map((s) => {
-                            const checked = selectedStoreIds.includes(s.id);
+                        <div className="max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm text-gray-900 space-y-2">
+                          {categories.map((c) => {
+                            const checked = selectedCategoryIds.includes(c.id);
                             return (
                               <label
-                                key={s.id}
-                                className="flex items-center gap-2 py-1 cursor-pointer"
+                                key={c.id}
+                                className="flex items-center gap-2 py-0.5 cursor-pointer"
                               >
                                 <input
                                   type="checkbox"
                                   checked={checked}
                                   onChange={(e) => {
                                     if (e.target.checked) {
-                                      setSelectedStoreIds((prev) => [...prev, s.id]);
+                                      setSelectedCategoryIds((prev) => [...prev, c.id]);
                                     } else {
-                                      setSelectedStoreIds((prev) =>
-                                        prev.filter((id) => id !== s.id)
+                                      setSelectedCategoryIds((prev) =>
+                                        prev.filter((id) => id !== c.id)
                                       );
                                     }
                                   }}
                                   className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                                 />
                                 <span>
-                                  {s.code ? `${s.name} (${s.code})` : s.name}
+                                  {c.name}
+                                  {c.stores.length > 0 && (
+                                    <span className="ml-1 text-xs text-gray-500">
+                                      ({c.stores.length} stores)
+                                    </span>
+                                  )}
                                 </span>
                               </label>
                             );

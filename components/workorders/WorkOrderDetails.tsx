@@ -461,7 +461,14 @@ export default function WorkOrderDetails({
             {workOrder.title}
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            Work Order #{workOrder.id}
+            {(() => {
+              const num = (workOrder as any).workOrderNumber as number | null | undefined;
+              const display =
+                typeof num === "number" && Number.isFinite(num) && num > 0
+                  ? String(num).padStart(4, "0")
+                  : String(workOrder.id);
+              return `Work Order #${display}`;
+            })()}
           </p>
         </div>
         {canEdit && (

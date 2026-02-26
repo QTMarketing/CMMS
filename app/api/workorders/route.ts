@@ -372,9 +372,16 @@ export async function POST(request: Request) {
       }
     }
 
+    // Assign next global work order number (4-digit display, e.g. 0001, 0002)
+    const agg = await prisma.workOrder.aggregate({
+      _max: { workOrderNumber: true },
+    });
+    const nextNumber = (agg._max.workOrderNumber ?? 0) + 1;
+
     const newWorkOrder = await prisma.workOrder.create({
       data: {
         id: nanoid(),
+        workOrderNumber: nextNumber,
         title,
         location: locationFromStore,
         assetId: assetId || null, // Allow null for optional asset

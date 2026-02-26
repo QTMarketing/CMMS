@@ -18,6 +18,16 @@ export async function GET() {
 
     const categories = await (prisma as any).storeCategory.findMany({
       orderBy: { name: "asc" },
+      include: {
+        stores: {
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+      },
     });
 
     return NextResponse.json({ success: true, data: categories });

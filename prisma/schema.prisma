@@ -69,6 +69,8 @@ model Vendor {
 
 model WorkOrder {
   id           String       @id
+  /// Global human-friendly work order number (e.g. 0001, 0002, ...)
+  workOrderNumber Int?      @unique
   title        String
   description  String?
   location     String?      // Location of the issue

@@ -90,7 +90,17 @@ export default async function SharedWorkOrderPage({ params }: PageParams) {
                 {workOrder.title}
               </h1>
               <p className="text-sm text-gray-500">
-                Work Order #{workOrder.id}
+                {(() => {
+                  const num = (workOrder as any).workOrderNumber as
+                    | number
+                    | null
+                    | undefined;
+                  const display =
+                    typeof num === "number" && Number.isFinite(num) && num > 0
+                      ? String(num).padStart(4, "0")
+                      : String(workOrder.id);
+                  return `Work Order #${display}`;
+                })()}
               </p>
             </div>
             <div className="flex gap-2">

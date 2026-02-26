@@ -17,14 +17,16 @@ export const config = {
      * - api/auth (NextAuth.js)
      * - api/stores/qr (public QR code API)
      * - api/workorders/public (public work order creation)
+     * - api/workorders/shared (public read-only shared work order)
      * - api/test-email (email test endpoint)
      * - workorder-form (public work order form page)
+     * - share/workorder (public shared work order page)
      * - login (login page)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    "/((?!api/auth|api/stores/qr|api/workorders/public|api/test-email|workorder-form|login|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/auth|api/stores/qr|api/workorders/public|api/workorders/shared|api/test-email|workorder-form|share/workorder|login|_next/static|_next/image|favicon.ico).*)",
   ],
 };
 
