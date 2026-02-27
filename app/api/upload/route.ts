@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { existsSync } from "fs";
+import { put } from "@vercel/blob";
 
 import { authOptions } from "@/lib/auth";
 import { getScopedStoreId } from "@/lib/storeAccess";
@@ -98,27 +96,34 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create folder structure: location/{storeId}/{fileType}/
-    const baseDir = join(process.cwd(), "public", "location", storeId, fileType);
-    if (!existsSync(baseDir)) {
-      await mkdir(baseDir, { recursive: true });
-    }
-
     // Generate unique filename
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 15);
     const extension = file.name.split(".").pop() || "bin";
     const filename = `${timestamp}-${randomStr}.${extension}`;
-    const filepath = join(baseDir, filename);
 
-    // Write file to disk
-    await writeFile(filepath, buffer);
+    // Store file in Vercel Blob storage under location/{storeId}/{fileType}/
+    const blobPath = `location/${storeId}/${fileType}/${filename}`;
 
-    // Return public URL (relative to public folder)
-    const publicUrl = `/location/${storeId}/${fileType}/${filename}`;
+    const putOptions: { access: "public"; token?: string } = {
+      access: "public",
+    };
+
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      putOptions.token = process.env.BLOB_READ_WRITE_TOKEN;
+    }
+
+    const blob = await put(blobPath, buffer, putOptions);
 
     return NextResponse.json(
-      { success: true, data: { url: publicUrl, filename } },
+      {
+        success: true,
+        data: {
+          url: blob.url,
+          filename,
+          path: blob.pathname ?? blobPath,
+        },
+      },
       { status: 201 }
     );
   } catch (error) {
