@@ -34,6 +34,8 @@ export default function PublicWorkOrderForm() {
   const [helpDescription, setHelpDescription] = useState("");
   const [priority, setPriority] = useState("Medium");
   const [partsRequired, setPartsRequired] = useState(false);
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
 
   useEffect(() => {
     if (!qrCode) {
@@ -62,6 +64,39 @@ export default function PublicWorkOrderForm() {
       });
   }, [qrCode]);
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !qrCode) return;
+    setUploadingFiles(true);
+    setError(null);
+    try {
+      const uploads = Array.from(files).map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("qrCode", qrCode);
+        formData.append("fileType", "workorder");
+        const res = await fetch("/api/upload/public", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || "Upload failed");
+        return data.data.url as string;
+      });
+      const urls = await Promise.all(uploads);
+      setAttachments((prev) => [...prev, ...urls]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload file(s).");
+    } finally {
+      setUploadingFiles(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -88,6 +123,7 @@ export default function PublicWorkOrderForm() {
           helpDescription: helpDescription.trim(),
           priority: priority,
           partsRequired: partsRequired,
+          attachments: attachments.length > 0 ? attachments : undefined,
         }),
       });
 
@@ -108,6 +144,7 @@ export default function PublicWorkOrderForm() {
       setHelpDescription("");
       setPriority("Medium");
       setPartsRequired(false);
+      setAttachments([]);
 
       // Hide success message after 5 seconds
       setTimeout(() => {
@@ -278,6 +315,47 @@ export default function PublicWorkOrderForm() {
               <label htmlFor="partsRequired" className="ml-2 block text-sm text-gray-700">
                 Parts are required
               </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Images / Videos (optional)
+              </label>
+              <input
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                onChange={handleFileChange}
+                disabled={uploadingFiles}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {uploadingFiles && (
+                <p className="mt-1 text-xs text-gray-500">Uploading...</p>
+              )}
+              {attachments.length > 0 && (
+                <div className="mt-2 space-y-2">
+                  {attachments.map((url, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2 text-sm"
+                    >
+                      <span className="text-gray-700 truncate flex-1 min-w-0">
+                        {url.split("/").pop() || `Attachment ${index + 1}`}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(index)}
+                        className="ml-2 text-red-600 hover:text-red-800 font-medium shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                Add photos or short videos to help describe the issue. Max 10MB per file.
+              </p>
             </div>
 
             <div className="flex gap-3 pt-4">

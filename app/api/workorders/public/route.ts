@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
       helpDescription,
       priority,
       partsRequired,
+      attachments,
     } = body ?? {};
 
     // Validate QR code
@@ -99,10 +100,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const agg = await prisma.workOrder.aggregate({
+      _max: { workOrderNumber: true },
+    });
+    const nextNumber = (agg._max.workOrderNumber ?? 0) + 1;
+
     // Create work order
     const newWorkOrder = await prisma.workOrder.create({
       data: {
         id: nanoid(),
+        workOrderNumber: nextNumber,
         title: title.trim(),
         location: null, // Location removed - using store location instead
         assetId: assetId || null,
@@ -112,6 +119,7 @@ export async function POST(req: NextRequest) {
         partsRequired: partsRequired === true,
         status: "Open",
         storeId: store.id,
+        attachments: Array.isArray(attachments) ? attachments : [],
         createdAt: new Date(),
       },
     });

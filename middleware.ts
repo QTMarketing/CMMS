@@ -6,6 +6,7 @@ import nextAuthMiddleware from "next-auth/middleware";
 // - /api/auth/* (NextAuth internal)
 // - /api/stores/qr/* (public API to fetch store by QR code)
 // - /api/workorders/public (public API to create work order via QR code)
+// - /api/upload/public (public file upload for QR work order form)
 // - /api/test-email (email config test – no auth, for debugging)
 // - /favicon.ico and Next.js static/_next assets
 export default nextAuthMiddleware;
@@ -26,7 +27,7 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    "/((?!api/auth|api/stores/qr|api/workorders/public|api/workorders/shared|api/test-email|workorder-form|share/workorder|login|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/auth|api/stores/qr|api/workorders/public|api/upload/public|api/workorders/shared|api/test-email|workorder-form|share/workorder|login|_next/static|_next/image|favicon.ico).*)",
   ],
 };
 
