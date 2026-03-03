@@ -62,6 +62,19 @@ export default function WorkOrderDetails({
     }
   }, [canEdit, workOrder.id]);
 
+  // Fetch full work order (including attachments) on mount so Master Admin / all roles always see attachments
+  useEffect(() => {
+    if (!workOrder?.id) return;
+    fetch(`/api/workorders/${workOrder.id}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data?.success && data?.data) {
+          setWorkOrder(data.data);
+        }
+      })
+      .catch(() => {});
+  }, [workOrder?.id]);
+
   async function handleGenerateShare() {
     setGeneratingShare(true);
     setShareError(null);
@@ -903,9 +916,10 @@ export default function WorkOrderDetails({
                 </p>
               ) : (
                 attachments.map((url, idx) => {
-                  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
-                  const isVideo = /\.(mp4|mpeg|mov|avi)$/i.test(url);
-                  const filename = url.split("/").pop() || "Attachment";
+                  const urlPath = url.split("?")[0];
+                  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(urlPath);
+                  const isVideo = /\.(mp4|mpeg|mov|avi)$/i.test(urlPath);
+                  const filename = urlPath.split("/").pop() || `Attachment ${idx + 1}`;
 
                   return (
                     <div
@@ -923,6 +937,7 @@ export default function WorkOrderDetails({
                             src={url}
                             alt={filename}
                             className="w-full h-auto max-h-64 object-contain bg-white"
+                            referrerPolicy="no-referrer"
                           />
                         </a>
                       ) : isVideo ? (

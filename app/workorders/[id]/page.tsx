@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import WorkOrderDetails from "@/components/workorders/WorkOrderDetails";
+import WorkOrderPageActions from "./WorkOrderPageActions";
 
 type PageParams = {
   params: Promise<{
@@ -88,15 +89,7 @@ export default async function WorkOrderDetailPage({ params }: PageParams) {
           </div>
         </div>
         {role !== "USER" && role !== "TECHNICIAN" && (
-        <div className="flex items-center gap-2">
-          <Link
-            href={`/workorders/${workOrder.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
-          >
-            <span className="text-sm leading-none">✎</span>
-            <span>Edit Work Order</span>
-          </Link>
-        </div>
+        <WorkOrderPageActions workOrderId={workOrder.id} />
         )}
       </div>
 

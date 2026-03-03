@@ -13,6 +13,7 @@ import { WorkOrder } from "../../lib/data/workOrders";
 import EditWorkOrderButton from "./EditWorkOrderButton";
 import ViewWorkOrderButton from "./ViewWorkOrderButton";
 import DeleteWorkOrderButton from "./DeleteWorkOrderButton";
+import { isAdminLike } from "@/lib/roles";
 import DashboardHeader, {
   DashboardSearchItem,
 } from "@/components/dashboard/DashboardHeader";
@@ -88,7 +89,7 @@ export default function WorkOrdersPage() {
   const technicianId = !isSessionLoading
     ? (((session?.user as any)?.technicianId ?? null) as string | null)
     : null;
-  const isAdmin = role === "ADMIN";
+  const isAdmin = isAdminLike(role);
   const isTechnician = role === "TECHNICIAN";
   const isUser = role === "USER";
   const isMasterAdmin = role === "MASTER_ADMIN";

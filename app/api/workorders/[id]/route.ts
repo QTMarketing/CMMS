@@ -27,6 +27,85 @@ const VALID_TRANSITIONS: Record<Status, Status[]> = {
   Cancelled: ["Open"],
 };
 
+/** GET: Fetch a single work order with full details (including attachments) for the detail view. */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const sessionUser = session.user as any;
+    const role = sessionUser?.role as string | undefined;
+    const technicianId = (sessionUser?.vendorId ?? null) as string | null;
+    const userStoreId = (sessionUser?.storeId ?? null) as string | null;
+
+    const { id } = await params;
+
+    const workOrder = await prisma.workOrder.findUnique({
+      where: { id },
+      include: {
+        asset: true,
+        assignedTo: true,
+        notes: true,
+        createdBy: {
+          select: { id: true, email: true, role: true },
+        },
+      },
+    });
+
+    if (!workOrder) {
+      return NextResponse.json(
+        { success: false, error: "Work order not found" },
+        { status: 404 }
+      );
+    }
+
+    if (role === "TECHNICIAN") {
+      if (!technicianId || workOrder.assignedToId !== technicianId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden" },
+          { status: 403 }
+        );
+      }
+      if (workOrder.storeId && userStoreId && workOrder.storeId !== userStoreId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden" },
+          { status: 403 }
+        );
+      }
+    } else if (role !== "USER" && role !== "MASTER_ADMIN" && role !== "STORE_ADMIN" && role !== "ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Forbidden" },
+        { status: 403 }
+      );
+    }
+
+    if (role === "STORE_ADMIN" || role === "ADMIN") {
+      if (workOrder.storeId && userStoreId && workOrder.storeId !== userStoreId) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden" },
+          { status: 403 }
+        );
+      }
+    }
+
+    return NextResponse.json({ success: true, data: workOrder });
+  } catch (error) {
+    console.error("[workorders GET by id]", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to load work order" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
