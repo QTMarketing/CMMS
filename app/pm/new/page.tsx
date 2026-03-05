@@ -1,57 +1,11 @@
-import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { redirect } from "next/navigation";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+
+import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
 import { isAdminLike } from "@/lib/roles";
-import { nanoid } from "nanoid";
-
-async function createPmSchedule(formData: FormData) {
-  "use server";
-
-  const session = await getServerSession(authOptions);
-  const role = (session?.user as any)?.role;
-  const isAdmin = isAdminLike(role);
-
-  if (!isAdmin) {
-    redirect("/workorders");
-  }
-
-  const userStoreId = ((session?.user as any)?.storeId ?? null) as
-    | string
-    | null;
-
-  const title = (formData.get("title") as string | null)?.trim() ?? "";
-  const assetId = (formData.get("assetId") as string | null)?.trim() ?? "";
-  const frequencyDaysRaw =
-    (formData.get("frequencyDays") as string | null) ?? "";
-  const nextDueDateRaw =
-    (formData.get("nextDueDate") as string | null) ?? "";
-  const activeRaw = formData.get("active") as string | null;
-
-  const frequencyDays = Number.parseInt(frequencyDaysRaw, 10) || 0;
-
-  if (!title || !assetId || !nextDueDateRaw || frequencyDays <= 0) {
-    // Very minimal validation — in a real app you might return a form error.
-    redirect("/pm");
-  }
-
-  await prisma.preventiveSchedule.create({
-    data: {
-      id: nanoid(),
-      title,
-      assetId,
-      frequencyDays,
-      nextDueDate: new Date(nextDueDateRaw),
-      active: activeRaw === "on" || activeRaw === "true",
-      // Scope schedules by store for store-scoped roles; MASTER_ADMIN
-      // will typically have storeId = null and see all schedules.
-      storeId: userStoreId,
-    },
-  });
-
-  redirect("/pm");
-}
+import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
+import NewPmScheduleForm from "../NewPmScheduleForm";
 
 export default async function NewPmSchedulePage() {
   const session = await getServerSession(authOptions);
@@ -64,15 +18,58 @@ export default async function NewPmSchedulePage() {
   const isAdmin = isAdminLike(role);
 
   if (!isAdmin) {
-    redirect("/workorders");
+    // Reuse existing behaviour: only admin-like roles may create PM schedules
+    return null;
   }
 
+  const userStoreId = ((session.user as any)?.storeId ?? null) as
+    | string
+    | null;
+
+  // Determine accessible stores for this user
+  let stores: { id: string; name: string; code: string | null }[] = [];
+  const canSeeAll = canSeeAllStores(role);
+
+  if (canSeeAll) {
+    stores = await prisma.store.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, code: true },
+    });
+  } else if (userStoreId) {
+    const store = await prisma.store.findUnique({
+      where: { id: userStoreId },
+      select: { id: true, name: true, code: true },
+    });
+    stores = store ? [store] : [];
+  }
+
+  // Compute the store scope for loading assets
+  const scopedStoreId = getScopedStoreId(role, userStoreId);
+
   const assets = await prisma.asset.findMany({
+    where: scopedStoreId ? { storeId: scopedStoreId } : {},
     orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      storeId: true,
+    },
   });
 
   const today = new Date();
   const defaultDate = today.toISOString().slice(0, 10);
+
+  const serializableAssets = assets.map((a) => ({
+    id: a.id,
+    name: a.name,
+    storeId: a.storeId ?? null,
+  }));
+
+  const serializableStores = stores.map((s) => ({
+    id: s.id,
+    name: s.name,
+    code: s.code ?? null,
+  }));
 
   return (
     <div className="flex flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
@@ -92,113 +89,13 @@ export default async function NewPmSchedulePage() {
         </Link>
       </div>
 
-      <form action={createPmSchedule} className="space-y-6 max-w-xl">
-        <div className="space-y-1">
-          <label
-            htmlFor="title"
-            className="block text-sm font-medium text-gray-700"
-          >
-            PM Name / Title
-          </label>
-          <input
-            id="title"
-            name="title"
-            type="text"
-            required
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <label
-            htmlFor="assetId"
-            className="block text-sm font-medium text-gray-700"
-          >
-            Asset
-          </label>
-          <select
-            id="assetId"
-            name="assetId"
-            required
-            className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
-            <option value="">Select an asset…</option>
-            {assets.map((asset) => (
-              <option key={asset.id} value={asset.id}>
-                {asset.name} ({asset.id})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1">
-            <label
-              htmlFor="frequencyDays"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Frequency (days)
-            </label>
-            <input
-              id="frequencyDays"
-              name="frequencyDays"
-              type="number"
-              min={1}
-              defaultValue={30}
-              required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label
-              htmlFor="nextDueDate"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Next Due Date
-            </label>
-            <input
-              id="nextDueDate"
-              name="nextDueDate"
-              type="date"
-              defaultValue={defaultDate}
-              required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <input
-            id="active"
-            name="active"
-            type="checkbox"
-            defaultChecked
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          <label
-            htmlFor="active"
-            className="text-sm font-medium text-gray-700"
-          >
-            Active schedule
-          </label>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            className="inline-flex items-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Save PM Schedule
-          </button>
-          <Link
-            href="/pm"
-            className="text-sm font-medium text-gray-600 hover:text-gray-800"
-          >
-            Cancel
-          </Link>
-        </div>
-      </form>
+      <NewPmScheduleForm
+        defaultDate={defaultDate}
+        assets={serializableAssets}
+        stores={serializableStores}
+        canSeeAllStores={canSeeAll}
+        userStoreId={userStoreId}
+      />
     </div>
   );
 }
