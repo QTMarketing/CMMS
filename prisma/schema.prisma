@@ -86,6 +86,8 @@ model WorkOrder {
   updatedAt    DateTime     @updatedAt
   dueDate      DateTime?
   completedAt  DateTime?
+  /// Reason when a completed work order is sent back for more work (Pending Review -> In Progress)
+  rejectionReason String?
   shareToken   String?      @unique // Token for external sharing
 
   // Multi-store: optional store that owns this work order.
