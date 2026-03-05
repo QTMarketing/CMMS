@@ -107,7 +107,19 @@ model WorkOrder {
   createdById     String?
   createdBy       User?   @relation("WorkOrderCreator", fields: [createdById], references: [id])
 
+  // Timeline notes / comments on this work order
+  notes           Note[]
+
   transfers       Transfer[]
+}
+
+model Note {
+  id          Int      @id @default(autoincrement())
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  timestamp   DateTime @default(now())
+  author      String
+  text        String
 }
 
 model InventoryItem {
