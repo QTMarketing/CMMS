@@ -10,6 +10,7 @@ import {
   sendWorkOrderUpdateEmail,
   sendWorkOrderApprovedEmail,
   sendWorkOrderRejectedEmail,
+  sendSharedWorkOrderEmail,
 } from "@/lib/email";
 
 const VALID_STATUSES = ["Open", "In Progress", "Pending Review", "Completed", "Cancelled"] as const;
@@ -52,7 +53,17 @@ export async function GET(
       where: { id },
       include: {
         asset: true,
+        // Legacy vendor-based assignment
         assignedTo: true,
+        // New user-based assignment
+        assignedToUser: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            storeId: true,
+          },
+        },
         notes: true,
         createdBy: {
           select: { id: true, email: true, role: true },
@@ -353,6 +364,23 @@ export async function PATCH(
       }
     }
 
+    const hasAssignedToUserIdKey = Object.prototype.hasOwnProperty.call(
+      body,
+      "assignedToUserId"
+    );
+
+    // New: update user-based assignee when explicitly provided.
+    if (hasAssignedToUserIdKey) {
+      const nextAssignedToUserId = body.assignedToUserId ?? null;
+      data.assignedToUserId =
+        typeof nextAssignedToUserId === "string" &&
+        nextAssignedToUserId.length > 0
+          ? nextAssignedToUserId
+          : null;
+    }
+
+    // Legacy: still support updating vendor-based assignee when requested via
+    // assignedToId / assignedTo, but only when share-by-email was not used.
     const hasAssignedToIdKey = Object.prototype.hasOwnProperty.call(
       body,
       "assignedToId"
@@ -366,7 +394,6 @@ export async function PATCH(
       const nextAssignedToId =
         (hasAssignedToIdKey ? body.assignedToId : body.assignedTo) ?? null;
 
-      // allow null to unassign
       data.assignedToId =
         typeof nextAssignedToId === "string" && nextAssignedToId.length > 0
           ? nextAssignedToId
@@ -374,7 +401,7 @@ export async function PATCH(
     }
   }
 
-  const previousTechnicianId = existing.assignedToId;
+  const previousTechnicianId = existing.assignedToUserId ?? existing.assignedToId;
   const previousStatus = existing.status;
 
   const updated = await prisma.workOrder.update({
@@ -382,7 +409,8 @@ export async function PATCH(
     data,
   });
 
-  const newTechnicianId = updated.assignedToId;
+  const newTechnicianId =
+    updated.assignedToUserId ?? updated.assignedToId;
   const technicianChanged =
     !!newTechnicianId && newTechnicianId !== previousTechnicianId;
   const statusChanged = updated.status !== previousStatus;
@@ -396,6 +424,7 @@ export async function PATCH(
       const detailed = await prisma.workOrder.findUnique({
         where: { id: updated.id },
         include: {
+          // Legacy vendor-based assignee
           assignedTo: {
             select: {
               id: true,
@@ -406,6 +435,13 @@ export async function PATCH(
                   name: true,
                 },
               },
+            },
+          },
+          // New user-based assignee
+          assignedToUser: {
+            select: {
+              id: true,
+              email: true,
             },
           },
           store: {
@@ -422,34 +458,49 @@ export async function PATCH(
         },
       });
 
-      const technician = detailed?.assignedTo;
-      let technicianEmail: string | null = technician?.email?.trim() || null;
+      // Prefer direct user-based assignee when present.
+      let technicianEmail: string | null =
+        detailed?.assignedToUser?.email?.trim() || null;
 
-      // Prefer the linked User's email (login email) so the technician gets mail at the address they use
-      if (technician?.id) {
+      const technicianVendor = detailed?.assignedTo;
+
+      // Fallback: derive from legacy vendor record via linked User.
+      if (!technicianEmail && technicianVendor?.id) {
         const linkedUser = await prisma.user.findFirst({
-          where: { vendorId: technician.id },
+          where: { vendorId: technicianVendor.id },
           select: { email: true },
         });
         if (linkedUser?.email?.trim()) {
           technicianEmail = linkedUser.email.trim();
+        } else {
+          technicianEmail = technicianVendor.email?.trim() || null;
         }
       }
 
       if (technicianEmail) {
-        const dueDateString = detailed?.dueDate
-          ? detailed.dueDate.toLocaleString()
-          : undefined;
+        // Ensure there is a share token so the assignee can view the work
+        // order without needing an account or login.
+        let shareToken = updated.shareToken;
+        if (!shareToken) {
+          const { nanoid } = await import("nanoid");
+          shareToken = nanoid(32);
+          await prisma.workOrder.update({
+            where: { id: updated.id },
+            data: { shareToken },
+          });
+        }
 
-        const sendResult = await sendWorkOrderAssignedEmail({
-          technicianEmail,
-          technicianName: technician?.name || undefined,
-          workOrderId: updated.id,
-          storeName:
-            technician?.store?.name || detailed?.store?.name || undefined,
-          title: detailed?.title,
-          description: detailed?.description || undefined,
-          dueDate: dueDateString,
+        const baseUrl =
+          process.env.NEXT_PUBLIC_BASE_URL ||
+          process.env.NEXTAUTH_URL ||
+          "https://cmms-theta.vercel.app";
+        const normalizedBase = baseUrl.replace(/\/+$/, "");
+        const shareUrl = `${normalizedBase}/share/workorder/${shareToken}`;
+
+        const sendResult = await sendSharedWorkOrderEmail({
+          toEmail: technicianEmail,
+          workOrderTitle: detailed?.title ?? undefined,
+          shareUrl,
         });
         if (!sendResult.sent) {
           console.error(
@@ -551,6 +602,14 @@ export async function PATCH(
     include: {
       asset: true,
       assignedTo: true,
+      assignedToUser: {
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          storeId: true,
+        },
+      },
       notes: true,
       createdBy: {
         select: {

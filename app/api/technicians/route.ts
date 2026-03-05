@@ -40,7 +40,19 @@ export async function GET(req: NextRequest) {
     }
 
     const items = await prisma.vendor.findMany({
-      where,
+      where: {
+        ...where,
+        // Only include vendors that have at least one linked user account
+        // (e.g. backoffice/technician logins) so the "Assigned To" list
+        // represents actual user accounts.
+        users: {
+          some: {
+            role: {
+              in: ["VENDOR", "BACKOFFICE"],
+            },
+          },
+        },
+      },
       orderBy: { name: "asc" },
     });
     return NextResponse.json(items);

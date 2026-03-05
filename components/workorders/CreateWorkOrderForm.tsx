@@ -43,7 +43,7 @@ export default function CreateWorkOrderForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [assets, setAssets] = useState<any[]>([]);
-  const [technicians, setTechnicians] = useState<any[]>([]);
+  const [backofficeUsers, setBackofficeUsers] = useState<any[]>([]);
   const [storeId, setStoreId] = useState<string>(currentStoreId ?? "");
   const [isPending, startTransition] = useTransition();
 
@@ -94,32 +94,31 @@ export default function CreateWorkOrderForm({
         setAssets([]);
       });
 
-    // Only fetch vendors if not USER role (USER can't assign)
+    // Only fetch backoffice users if not USER role (USER can't assign)
     if (!isUser) {
-      // Also filter vendors by store
-      const vendorsUrl = effectiveStoreId
-        ? `/api/technicians?storeId=${effectiveStoreId}`
-        : "/api/technicians";
-      
-      fetch(vendorsUrl, { cache: "no-store" })
+      const backofficeUrl = effectiveStoreId
+        ? `/api/backoffice?storeId=${effectiveStoreId}`
+        : "/api/backoffice";
+
+      fetch(backofficeUrl, { cache: "no-store" })
         .then((res) => {
           if (!res.ok) {
-            console.error("Failed to fetch vendors:", res.status);
+            console.error("Failed to fetch backoffice users:", res.status);
             return [];
           }
           return res.json();
         })
         .then((data) => {
-          const vendorsList = Array.isArray(data) ? data : data.data || [];
+          const usersList = Array.isArray(data) ? data : data.data || [];
           // Additional client-side filter as backup
           const filtered = effectiveStoreId
-            ? vendorsList.filter((v: any) => v.storeId === effectiveStoreId)
-            : vendorsList;
-          setTechnicians(filtered);
+            ? usersList.filter((u: any) => u.storeId === effectiveStoreId)
+            : usersList;
+          setBackofficeUsers(filtered);
         })
         .catch((err) => {
-          console.error("Error fetching vendors:", err);
-          setTechnicians([]);
+          console.error("Error fetching backoffice users:", err);
+          setBackofficeUsers([]);
         });
     }
   }, [isUser, effectiveStoreId, isMasterAdmin]);
@@ -210,7 +209,8 @@ export default function CreateWorkOrderForm({
         helpDescription,
         attachments,
         priority,
-        assignedTo: isUser ? undefined : assignedTo || undefined,
+        // Use new user-based assignment for backoffice staff
+        assignedToUserId: isUser ? undefined : assignedTo || undefined,
         dueDate: dueDate || undefined,
         // Only MASTER_ADMIN can pick a store explicitly; STORE_ADMIN and USER are scoped
         // to their own store on the backend.
@@ -420,23 +420,23 @@ export default function CreateWorkOrderForm({
 
       {/* Assigned To (only for admins, not USER) */}
       {!isUser && (
-      <div>
-        <label className="block text-sm font-medium mb-1">Assigned To</label>
-        <select
-          className="w-full border rounded px-3 py-1"
-          value={assignedTo}
-          onChange={(e) => setAssignedTo(e.target.value)}
-        >
-          <option value="">Unassigned</option>
-          {technicians
-            .filter((t) => t.active)
-            .map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-        </select>
-      </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Assigned To</label>
+          <select
+            className="w-full border rounded px-3 py-1"
+            value={assignedTo}
+            onChange={(e) => setAssignedTo(e.target.value)}
+          >
+            <option value="">Unassigned</option>
+            {backofficeUsers
+              .filter((u) => u.active !== false)
+              .map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.email}
+                </option>
+              ))}
+          </select>
+        </div>
       )}
 
       <div>

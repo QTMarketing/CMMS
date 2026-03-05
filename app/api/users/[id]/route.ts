@@ -5,7 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { isAdminLike, isMasterAdmin } from "@/lib/roles";
 
-const ALLOWED_ROLES = ["MASTER_ADMIN", "STORE_ADMIN", "ADMIN", "TECHNICIAN", "USER"] as const;
+const ALLOWED_ROLES = [
+  "MASTER_ADMIN",
+  "STORE_ADMIN",
+  "ADMIN",
+  "TECHNICIAN",
+  "BACKOFFICE",
+  "USER",
+] as const;
 
 export async function PATCH(
   req: NextRequest,

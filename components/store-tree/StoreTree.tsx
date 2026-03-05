@@ -41,6 +41,12 @@ const STORE_SUB_ITEMS = [
     href: (storeId: string) => `/stores/${storeId}/work-order-history`,
     icon: "📜",
   },
+  // Vendors by division/store: open the store page on the Vendors tab
+  {
+    label: "Vendors",
+    href: (storeId: string) => `/stores/${storeId}?tab=Vendors`,
+    icon: "🤝",
+  },
 ] as const;
 
 function Chevron({ open }: { open: boolean }) {

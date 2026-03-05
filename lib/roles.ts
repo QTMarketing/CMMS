@@ -24,7 +24,8 @@ export function isAdminLike(role?: string | null): boolean {
 }
 
 export function isVendor(role?: string | null): boolean {
-  return role === "VENDOR";
+  const normalized = role?.toUpperCase();
+  return normalized === "VENDOR" || normalized === "BACKOFFICE";
 }
 
 export function isUser(role?: string | null): boolean {

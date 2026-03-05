@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import BulkImportDrawer from "@/components/BulkImportDrawer";
@@ -9,6 +10,7 @@ import AddInventoryDrawer from "@/app/inventory/components/AddInventoryDrawer";
 import AddRequestDrawer from "../components/AddRequestDrawer";
 import AddPMScheduleDrawer from "../components/AddPMScheduleDrawer";
 import AddPurchaseOrderDrawer from "../components/AddPurchaseOrderDrawer";
+import ImportVendorsButton from "@/app/technicians/components/ImportVendorsButton";
 
 type Store = {
   id: string;
@@ -60,6 +62,16 @@ type PurchaseOrder = {
   total?: number | null;
 };
 
+type Vendor = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  serviceOn: string | null;
+  note: string | null;
+  active: boolean;
+};
+
 type Props = {
   store: Store;
   assets: Asset[];
@@ -67,10 +79,18 @@ type Props = {
   requests: Request[];
   schedules: Schedule[];
   purchaseOrders?: PurchaseOrder[];
+   vendors?: Vendor[];
   initialTab?: string;
 };
 
-const tabs = ["Assets", "Parts", "Requests", "Preventive Maintenance", "Purchase Orders"] as const;
+const tabs = [
+  "Assets",
+  "Parts",
+  "Requests",
+  "Preventive Maintenance",
+  "Purchase Orders",
+  "Vendors",
+] as const;
 
 export default function StoreDetailTabs({
   store,
@@ -79,9 +99,13 @@ export default function StoreDetailTabs({
   requests,
   schedules,
   purchaseOrders = [],
+  vendors = [],
   initialTab,
 }: Props) {
   const router = useRouter();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role as string | undefined;
+  const isMaster = role === "MASTER_ADMIN";
   const searchParams = useSearchParams();
   const tabFromUrl = searchParams?.get("tab") || undefined;
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>(
@@ -166,6 +190,9 @@ export default function StoreDetailTabs({
         )}
         {activeTab === "Purchase Orders" && (
           <PurchaseOrdersTab purchaseOrders={purchaseOrders} storeId={store.id} />
+        )}
+        {activeTab === "Vendors" && (
+          <VendorsTab vendors={vendors} storeId={store.id} />
         )}
       </div>
     </div>
@@ -656,6 +683,133 @@ function PurchaseOrdersTab({
                   {typeof po.total === "number"
                     ? `$${po.total.toFixed(2)}`
                     : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function VendorsTab({
+  vendors,
+  storeId,
+}: {
+  vendors: Vendor[];
+  storeId: string;
+}) {
+  const router = useRouter();
+  const { data: session } = useSession();
+  const role = (session?.user as any)?.role as string | undefined;
+  const isMaster = role === "MASTER_ADMIN";
+
+  const handleGoToVendors = () => {
+    router.push(`/technicians?storeId=${encodeURIComponent(storeId)}`);
+  };
+
+  if (!vendors.length) {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Vendors for this Store
+          </h2>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/technicians/new?storeId=${encodeURIComponent(storeId)}`}
+              className="inline-flex items-center rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-600"
+            >
+              Add Vendor
+            </Link>
+            <ImportVendorsButton isMaster={!!isMaster} />
+            <button
+              type="button"
+              onClick={handleGoToVendors}
+              className="text-xs font-medium text-blue-600 hover:underline"
+            >
+              Go to Vendor List →
+            </button>
+          </div>
+        </div>
+        <p className="text-sm text-gray-500">
+          No vendors linked to this store yet.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between items-center">
+        <h2 className="text-sm font-semibold text-gray-900">
+          Vendors for this Store
+        </h2>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/technicians/new?storeId=${encodeURIComponent(storeId)}`}
+            className="inline-flex items-center rounded-md bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-600"
+          >
+            Add Vendor
+          </Link>
+          <ImportVendorsButton isMaster={!!isMaster} />
+          <button
+            type="button"
+            onClick={handleGoToVendors}
+            className="text-xs font-medium text-blue-600 hover:underline"
+          >
+            Go to Vendor List →
+          </button>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-xs sm:text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 font-semibold text-gray-600">Name</th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Service On
+              </th>
+              <th className="px-3 py-2 font-semibold text-gray-600">Email</th>
+              <th className="px-3 py-2 font-semibold text-gray-600">Phone</th>
+              <th className="px-3 py-2 font-semibold text-gray-600">Note</th>
+              <th className="px-3 py-2 font-semibold text-gray-600">
+                Status
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {vendors.map((v) => (
+              <tr key={v.id} className="hover:bg-gray-50">
+                <td className="px-3 py-2 text-gray-900 font-medium">
+                  {v.name}
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {v.serviceOn || "—"}
+                </td>
+                <td className="px-3 py-2 text-gray-700">{v.email}</td>
+                <td className="px-3 py-2 text-gray-700">
+                  {v.phone || "—"}
+                </td>
+                <td className="px-3 py-2 text-gray-600">
+                  <span
+                    className="line-clamp-2"
+                    title={v.note ?? undefined}
+                  >
+                    {v.note || "—"}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-gray-700">
+                  {v.active ? (
+                    <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                      Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                      Inactive
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}

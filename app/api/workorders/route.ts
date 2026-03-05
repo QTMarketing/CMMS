@@ -4,11 +4,7 @@ import { nanoid } from "nanoid";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
-import {
-  isAdminLike,
-  isVendor as isVendorRole,
-  isMasterAdmin,
-} from "@/lib/roles";
+import { isAdminLike, isVendor as isVendorRole, isMasterAdmin } from "@/lib/roles";
 import { canSeeAllStores, getScopedStoreId } from "@/lib/storeAccess";
 import { sendEmail, sendWorkOrderAssignedEmail, sendWorkOrderUpdateEmail } from "@/lib/email";
 import { verifyMobileToken } from "@/lib/mobileAuth";
@@ -18,7 +14,7 @@ export async function GET(req: NextRequest) {
     // Try NextAuth session first (for web)
     let session = await getServerSession(authOptions);
     let role: string | undefined;
-    let vendorId: string | null = null;
+    let userId: string | undefined;
     let userStoreId: string | null = null;
 
     // If no session, try mobile token
@@ -27,6 +23,7 @@ export async function GET(req: NextRequest) {
       if (mobileUser) {
         role = mobileUser.role;
         userStoreId = mobileUser.storeId || null;
+        userId = mobileUser.id;
       } else {
         return NextResponse.json(
           { success: false, error: "Unauthorized" },
@@ -35,9 +32,7 @@ export async function GET(req: NextRequest) {
       }
     } else {
       role = (session.user as any)?.role as string | undefined;
-      vendorId = ((session.user as any)?.vendorId ?? null) as
-        | string
-        | null;
+      userId = (session.user as any)?.id as string | undefined;
       userStoreId = ((session.user as any)?.storeId ?? null) as
         | string
         | null;
@@ -64,14 +59,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (isVendorRole(role)) {
-      // Vendors must only ever see their own assigned work orders.
-      // If, for some reason, their user account is not linked to a vendor
-      // record, they should see nothing rather than all store work orders.
-      if (!vendorId) {
-        where.assignedToId = "__never_match__";
-      } else {
-        where.assignedToId = vendorId;
-      }
+      // Backoffice / vendor-style roles should only see work orders assigned
+      // directly to their user account. If, for some reason, we don't have
+      // a user id, return no work orders rather than everything.
+      where.assignedToUserId = userId ?? "__never_match__";
     }
 
     // Optional dueDate range filter (from/to). We treat incoming values as
@@ -116,11 +107,21 @@ export async function GET(req: NextRequest) {
             role: true,
           },
         },
+        // Legacy vendor assignment; kept for backward compatibility
         assignedTo: {
           select: {
             id: true,
             name: true,
             email: true,
+          },
+        },
+        // New user-based assignment for backoffice staff
+        assignedToUser: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            storeId: true,
           },
         },
         store: {
@@ -187,7 +188,10 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    console.log("[workorders POST] Received request body:", JSON.stringify(body, null, 2));
+    console.log(
+      "[workorders POST] Received request body:",
+      JSON.stringify(body, null, 2)
+    );
     const {
       title,
       location,
@@ -197,7 +201,10 @@ export async function POST(request: Request) {
       helpDescription,
       attachments,
       priority,
+      // Legacy vendor-based assignment (deprecated; kept for backward compatibility)
       assignedTo,
+      // New user-based assignee (backoffice staff)
+      assignedToUserId,
       dueDate,
       description,
       storeId: rawStoreId,
@@ -262,6 +269,22 @@ export async function POST(request: Request) {
         { success: false, error: "Invalid priority." },
         { status: 400 }
       );
+    }
+
+    // If a new user-based assignee is provided, ensure the user exists.
+    let finalAssignedToUserId: string | undefined;
+    if (typeof assignedToUserId === "string" && assignedToUserId.trim()) {
+      const user = await prisma.user.findUnique({
+        where: { id: assignedToUserId.trim() },
+        select: { id: true },
+      });
+      if (!user) {
+        return NextResponse.json(
+          { success: false, error: "Assignee user not found." },
+          { status: 400 }
+        );
+      }
+      finalAssignedToUserId = user.id;
     }
 
     // Determine final storeId for the work order.
@@ -391,6 +414,8 @@ export async function POST(request: Request) {
         attachments: Array.isArray(attachments) ? attachments : [],
         priority,
         status: "Open",
+        // Prefer new user-based assignment; keep legacy vendor id if provided.
+        assignedToUserId: finalAssignedToUserId,
         assignedToId: assignedTo || undefined,
         createdAt: new Date(),
         dueDate: normalizedDueDate,
@@ -400,7 +425,48 @@ export async function POST(request: Request) {
       },
     });
 
-    if (newWorkOrder.assignedToId) {
+    // First, try sending assignment email for the new user-based assignee.
+    if (newWorkOrder.assignedToUserId) {
+      try {
+        const assignee = await prisma.user.findUnique({
+          where: { id: newWorkOrder.assignedToUserId },
+          select: {
+            id: true,
+            email: true,
+          },
+        });
+
+        const technicianEmail = assignee?.email?.trim() || null;
+
+        if (technicianEmail) {
+          const store = newWorkOrder.storeId
+            ? await prisma.store.findUnique({
+                where: { id: newWorkOrder.storeId },
+                select: { name: true },
+              })
+            : null;
+
+          const dueDateString = newWorkOrder.dueDate
+            ? newWorkOrder.dueDate.toLocaleString()
+            : undefined;
+
+          await sendWorkOrderAssignedEmail({
+            technicianEmail,
+            technicianName: assignee?.email || undefined,
+            workOrderId: newWorkOrder.id,
+            storeName: store?.name || undefined,
+            title: newWorkOrder.title,
+            description: newWorkOrder.description || undefined,
+            dueDate: dueDateString,
+          });
+        }
+      } catch (error) {
+        console.error(
+          "[workorders] Failed to send work order assignment email on create (user-based)",
+          error
+        );
+      }
+    } else if (newWorkOrder.assignedToId) {
       try {
         const vendor = await prisma.vendor.findUnique({
           where: { id: newWorkOrder.assignedToId },

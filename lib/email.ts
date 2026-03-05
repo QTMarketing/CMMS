@@ -153,6 +153,38 @@ export async function sendWorkOrderAssignedEmail(options: {
   });
 }
 
+export async function sendSharedWorkOrderEmail(options: {
+  toEmail: string;
+  workOrderTitle?: string;
+  shareUrl: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  const { toEmail, workOrderTitle, shareUrl } = options;
+
+  const lines: string[] = [];
+
+  lines.push("<p>You have been sent a work order to view.</p>");
+  if (workOrderTitle) {
+    lines.push(`<p><strong>Title:</strong> ${workOrderTitle}</p>`);
+  }
+
+  lines.push(
+    `<p><a href="${shareUrl}" style="display:inline-block;padding:8px 14px;margin-top:8px;border-radius:6px;background-color:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;">View Work Order</a></p>`
+  );
+  lines.push(
+    `<p style="font-size:12px;color:#6b7280;">If the button above does not work, copy and paste this link into your browser:<br /><a href="${shareUrl}">${shareUrl}</a></p>`
+  );
+
+  const html = lines.join("");
+
+  return sendEmail({
+    to: toEmail,
+    subject: workOrderTitle
+      ? `Shared Work Order: ${workOrderTitle}`
+      : "Shared Work Order",
+    html,
+  });
+}
+
 /** Sent to the user who submitted the request (confirmation). */
 export async function sendRequestSubmissionConfirmationEmail(options: {
   toEmail: string;

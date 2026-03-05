@@ -19,12 +19,10 @@ import DashboardHeader, {
 } from "@/components/dashboard/DashboardHeader";
 
 // --- Type definitions for API objects ---
-interface Technician {
+interface BackofficeUser {
   id: string;
-  name: string;
   email: string;
-  phone?: string;
-  active: boolean;
+  active?: boolean;
 }
 
 const statusOptions = [
@@ -87,7 +85,7 @@ export default function WorkOrdersPage() {
   const rawRole = (session?.user as any)?.role;
   const role = !isSessionLoading ? rawRole : undefined;
   const technicianId = !isSessionLoading
-    ? (((session?.user as any)?.technicianId ?? null) as string | null)
+    ? (((session?.user as any)?.id ?? null) as string | null)
     : null;
   const isAdmin = isAdminLike(role);
   const isTechnician = role === "TECHNICIAN";
@@ -122,7 +120,7 @@ export default function WorkOrdersPage() {
 
   const [tableOrders, setTableOrders] = useState<WorkOrder[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [technicians, setTechnicians] = useState<BackofficeUser[]>([]);
   const [stores, setStores] = useState<{ id: string; name: string; code?: string | null }[]>([]);
 
   // Initialize filter from URL query parameter if present
@@ -182,19 +180,19 @@ export default function WorkOrdersPage() {
         setAssets([]);
       });
 
-    fetch("/api/technicians", { cache: "no-store" })
+    fetch("/api/backoffice", { cache: "no-store" })
       .then((res) => {
         if (!res.ok) {
-          console.error("Failed to fetch technicians:", res.status);
+          console.error("Failed to fetch backoffice users:", res.status);
           return [];
         }
         return res.json();
       })
-      .then((data) =>
-        setTechnicians(Array.isArray(data) ? data : data.data || [])
-      )
+        .then((data) =>
+          setTechnicians(Array.isArray(data) ? data : data.data || [])
+        )
       .catch((err) => {
-        console.error("Error fetching technicians:", err);
+        console.error("Error fetching backoffice users:", err);
         setTechnicians([]);
       });
 
@@ -232,7 +230,7 @@ export default function WorkOrdersPage() {
     assets.map((a) => [a.id, a])
   ) as Record<string, Asset>;
   const techMap = Object.fromEntries(
-    technicians.map((t) => [t.id, t.name])
+    technicians.map((t) => [t.id, t.email])
   ) as Record<string, string>;
 
   const now = new Date();
@@ -247,7 +245,7 @@ export default function WorkOrdersPage() {
   // ADMIN: sees all work orders.
   if (isTechnician && technicianId) {
     visibleWorkOrders = tableOrders.filter(
-      (w) => w.assignedToId === technicianId
+      (w) => (w as any).assignedToUserId === technicianId
     );
   }
 
@@ -288,7 +286,7 @@ export default function WorkOrdersPage() {
 
   // Technician dropdown filter (ADMIN only)
   if (isAdmin && techFilter !== "all") {
-    rows = rows.filter((w) => w.assignedToId === techFilter);
+    rows = rows.filter((w) => (w as any).assignedToUserId === techFilter);
   }
 
   // Search by title or asset name
@@ -593,13 +591,14 @@ export default function WorkOrdersPage() {
                     <td className="p-4 align-top">
                       <div className="flex items-center gap-2">
                         <div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-600">
-                          {(techMap[w.assignedToId || ""] || "U")
+                          {(techMap[(w as any).assignedToUserId || ""] || "U")
                             .charAt(0)
                             .toUpperCase()}
                         </div>
                         <span className="text-sm text-slate-800">
-                          {w.assignedToId
-                            ? techMap[w.assignedToId] || w.assignedToId
+                          {(w as any).assignedToUserId
+                            ? techMap[(w as any).assignedToUserId] ||
+                              (w as any).assignedToUserId
                             : "Unassigned"}
                         </span>
                       </div>

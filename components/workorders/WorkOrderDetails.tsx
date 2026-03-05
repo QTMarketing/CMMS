@@ -164,11 +164,13 @@ export default function WorkOrderDetails({
     }
   }
 
-  // Resolve assigned technician name
+  // Resolve assignee display (prefer new user-based assignment)
   const assignedToName =
+    workOrder.assignedToUser?.email ||
     (workOrder.assignedTo?.name ||
       (workOrder.assignedToId && technicianMap[workOrder.assignedToId]) ||
-      workOrder.assignedToId) ?? "—";
+      workOrder.assignedToId) ||
+    "—";
 
   async function handleMarkComplete() {
     if (workOrder.status === "Completed") {
@@ -838,7 +840,7 @@ export default function WorkOrderDetails({
                 {canEdit ? (
                   <WorkOrderAssigneeControl
                     workOrderId={workOrder.id}
-                    initialAssigneeId={workOrder.assignedToId}
+                    initialAssigneeId={workOrder.assignedToUserId}
                     onAssigned={refreshWorkOrder}
                   />
                 ) : (

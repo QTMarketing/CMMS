@@ -41,7 +41,7 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
     notFound();
   }
 
-  const [assets, parts, requests, schedules, purchaseOrders] = await Promise.all([
+  const [assets, parts, requests, schedules, purchaseOrders, vendors] = await Promise.all([
     prisma.asset.findMany({
       where: { storeId: id },
       select: {
@@ -110,6 +110,19 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
+    prisma.vendor.findMany({
+      where: { storeId: id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        serviceOn: true,
+        note: true,
+        active: true,
+      },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const serializableStore = {
@@ -141,6 +154,16 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
         : 0,
   }));
 
+  const serializableVendors = vendors.map((v) => ({
+    id: v.id,
+    name: v.name,
+    email: v.email,
+    phone: v.phone ?? null,
+    serviceOn: v.serviceOn ?? null,
+    note: v.note ?? null,
+    active: v.active,
+  }));
+
   return (
     <StoreDetailTabs
       store={serializableStore}
@@ -152,6 +175,7 @@ export default async function StoreDetailPage({ params, searchParams }: PageProp
       }))}
       schedules={serializableSchedules}
       purchaseOrders={serializablePurchaseOrders}
+      vendors={serializableVendors}
       initialTab={tabParam || undefined}
     />
   );

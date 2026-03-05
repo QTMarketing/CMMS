@@ -62,6 +62,7 @@ model Vendor {
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
 
+  // Backoffice / technician work orders that this vendor is assigned to
   workOrders     WorkOrder[]     @relation("VendorWorkOrders")
   users          User[]          @relation("UserVendor")
   purchaseOrders PurchaseOrder[] @relation("VendorPurchaseOrders")
@@ -94,42 +95,35 @@ model WorkOrder {
   assetId String?
   asset   Asset?  @relation(fields: [assetId], references: [id])
 
+  // Legacy vendor-based assignment (kept for backward compatibility / reporting)
   assignedToId String?
   assignedTo   Vendor? @relation("VendorWorkOrders", fields: [assignedToId], references: [id])
+
+  // New user-based assignment (backoffice/internal staff)
+  assignedToUserId String?
+  assignedToUser   User?   @relation("UserWorkOrders", fields: [assignedToUserId], references: [id])
 
   // Track who created the work order (for USER role notifications)
   createdById     String?
   createdBy       User?   @relation("WorkOrderCreator", fields: [createdById], references: [id])
 
-  /// Reason provided when work order is rejected from Pending Review (emailed to creator)
-  rejectionReason String?
-
-  notes Note[]
-  transfers Transfer[]
-}
-
-model Note {
-  id          Int       @id @default(autoincrement())
-  workOrderId String
-  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
-  timestamp   DateTime  @default(now())
-  author      String
-  text        String
+  transfers       Transfer[]
 }
 
 model InventoryItem {
-  id               String  @id
-  name             String
-  partNumber       String
-  quantityOnHand   Int
+  id             String  @id
+  name           String
+  partNumber     String
+  quantityOnHand Int
   reorderThreshold Int
-  location         String?
+  location       String?
 
   // Multi-store: optional store that owns this inventory item.
   storeId String?
   store   Store?  @relation(fields: [storeId], references: [id])
-  transfers      Transfer[]
-  purchaseItems  PurchaseOrderItem[]
+
+  transfers     Transfer[]
+  purchaseItems PurchaseOrderItem[]
 }
 
 model PurchaseOrder {
@@ -196,10 +190,12 @@ model User {
 
   vendorId String?
   vendor   Vendor? @relation("UserVendor", fields: [vendorId], references: [id])
-  accounts     Account[]
-  sessions     Session[]
+  accounts         Account[]
+  sessions         Session[]
   createdWorkOrders WorkOrder[] @relation("WorkOrderCreator")
-  transfers Transfer[]
+  // Work orders assigned to this user (backoffice/internal staff)
+  assignedWorkOrders WorkOrder[] @relation("UserWorkOrders")
+  transfers         Transfer[]
 }
 
 model Request {

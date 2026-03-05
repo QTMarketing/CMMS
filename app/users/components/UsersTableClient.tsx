@@ -18,7 +18,14 @@ type Props = {
   initialUsers: UserRow[];
 };
 
-const roleOptions = ["MASTER_ADMIN", "STORE_ADMIN", "ADMIN", "TECHNICIAN", "USER"] as const;
+const roleOptions = [
+  "MASTER_ADMIN",
+  "STORE_ADMIN",
+  "ADMIN",
+  "TECHNICIAN",
+  "BACKOFFICE",
+  "USER",
+] as const;
 
 export default function UsersTableClient({ initialUsers }: Props) {
   const [users, setUsers] = useState<UserRow[]>(initialUsers);

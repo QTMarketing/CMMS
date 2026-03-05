@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-type Technician = {
+type BackofficeUser = {
   id: string;
-  name: string;
   email?: string;
   active?: boolean;
 };
@@ -21,7 +20,7 @@ export function WorkOrderAssigneeControl({
   initialAssigneeId,
   onAssigned,
 }: Props) {
-  const [technicians, setTechnicians] = useState<Technician[]>([]);
+  const [users, setUsers] = useState<BackofficeUser[]>([]);
   const [assigneeId, setAssigneeId] = useState<string>(initialAssigneeId || "");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -37,24 +36,26 @@ export function WorkOrderAssigneeControl({
 
   useEffect(() => {
     let cancelled = false;
-    async function loadTechnicians() {
+    async function loadBackofficeUsers() {
       setLoading(true);
       try {
-        const res = await fetch("/api/technicians", { cache: "no-store" });
+        const res = await fetch("/api/backoffice", { cache: "no-store" });
         const data = await res.json();
-        const list: Technician[] = Array.isArray(data) ? data : data.data || [];
+        const list: BackofficeUser[] = Array.isArray(data)
+          ? data
+          : data.data || [];
         if (!cancelled) {
-          setTechnicians(list);
+          setUsers(list);
         }
       } catch {
         if (!cancelled) {
-          setError("Unable to load technicians.");
+          setError("Unable to load backoffice users.");
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
-    loadTechnicians();
+    loadBackofficeUsers();
     return () => {
       cancelled = true;
     };
@@ -69,7 +70,7 @@ export function WorkOrderAssigneeControl({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          assignedToId: nextId || null,
+          assignedToUserId: nextId || null,
         }),
       });
       if (!res.ok) {
@@ -90,25 +91,23 @@ export function WorkOrderAssigneeControl({
   async function handleShareByEmail() {
     const email = shareEmail.trim();
     if (!email) {
-      setShareError("Enter the technician's email address.");
+      setShareError("Enter the email address.");
       return;
     }
     setShareSaving(true);
     setShareError(null);
     try {
-      const res = await fetch(`/api/workorders/${workOrderId}`, {
-        method: "PATCH",
+      const res = await fetch(`/api/workorders/${workOrderId}/share-email`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedToEmail: email }),
+        body: JSON.stringify({ email }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setShareError(data?.error || "Unable to share work order with this email.");
+        setShareError(
+          data?.error || "Unable to share work order with this email."
+        );
         return;
-      }
-      const newAssigneeId = data?.data?.assignedToId ?? null;
-      if (newAssigneeId) {
-        setAssigneeId(newAssigneeId);
       }
       setShareEmail("");
       onAssigned?.();
@@ -129,11 +128,11 @@ export function WorkOrderAssigneeControl({
           disabled={loading || saving}
         >
           <option value="">Unassigned</option>
-          {technicians
-            .filter((t) => t.active !== false)
-            .map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
+          {users
+            .filter((u) => u.active !== false)
+            .map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.email}
               </option>
             ))}
         </select>
@@ -151,10 +150,10 @@ export function WorkOrderAssigneeControl({
 
       <div className="border-t border-slate-200 pt-2">
         <label className="block text-xs font-medium text-slate-600 mb-1">
-          Share with technician by email
+          Share work order by email
         </label>
         <p className="text-[11px] text-slate-500 mb-1.5">
-          Enter their email to assign this work order and send them a formal notification.
+          Enter an email address to send a view-only link to this work order.
         </p>
         <div className="flex gap-2">
           <input
