@@ -23,7 +23,8 @@ export default function WorkOrderDetails({
   const technicianId = (session?.user as any)?.technicianId as string | undefined;
   const isUser = role === "USER";
   const isTechnician = role === "TECHNICIAN";
-  const canEdit = !isUser && !isTechnician; // Only admins can edit
+  const canEdit = !isUser && !isTechnician; // Only admins / managers can edit
+  const canViewExpenses = !isUser; // Hide expenses from plain USER, but allow admins/managers/technicians to see them
 
   const [workOrder, setWorkOrder] = useState(initialWorkOrder);
   
@@ -45,6 +46,19 @@ export default function WorkOrderDetails({
   const [revokingShare, setRevokingShare] = useState(false);
   const [showTransferDrawer, setShowTransferDrawer] = useState(false);
   const [transferType, setTransferType] = useState<"ASSET" | "INVENTORY">("ASSET");
+
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [loadingExpenses, setLoadingExpenses] = useState(false);
+  const [expensesError, setExpensesError] = useState<string | null>(null);
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [expenseDescription, setExpenseDescription] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("Parts");
+  const [expenseInvoiceUploading, setExpenseInvoiceUploading] = useState(false);
+  const [expenseInvoiceUrl, setExpenseInvoiceUrl] = useState<string | null>(null);
+  const [expenseInvoiceType, setExpenseInvoiceType] = useState<string | null>(null);
+  const [parts, setParts] = useState<any[]>([]);
+  const [selectedPartId, setSelectedPartId] = useState<string>("");
 
   // Load existing share URL on mount if admin
   useEffect(() => {
@@ -74,6 +88,175 @@ export default function WorkOrderDetails({
       })
       .catch(() => {});
   }, [workOrder?.id]);
+
+  // Load expenses and available parts for this work order
+  useEffect(() => {
+    if (!canViewExpenses || !workOrder?.id) return;
+
+    const controller = new AbortController();
+
+    async function loadExpensesAndParts() {
+      try {
+        setLoadingExpenses(true);
+        setExpensesError(null);
+
+        const [expRes, partsRes] = await Promise.all([
+          fetch(
+            `/api/expenses?workOrderId=${encodeURIComponent(workOrder.id)}`,
+            {
+              signal: controller.signal,
+            }
+          ),
+          // Reuse inventory API, filtered by store if available
+          fetch(
+            workOrder.storeId
+              ? `/api/inventory?storeId=${encodeURIComponent(
+                  workOrder.storeId as string
+                )}`
+              : "/api/inventory",
+            { signal: controller.signal }
+          ),
+        ]);
+
+        const expData = await expRes.json().catch(() => null);
+        if (expRes.ok && expData && expData.success && Array.isArray(expData.data)) {
+          setExpenses(expData.data);
+        } else {
+          setExpenses([]);
+        }
+
+        const partsData = await partsRes.json().catch(() => null);
+        const list = Array.isArray(partsData)
+          ? partsData
+          : partsData?.data && Array.isArray(partsData.data)
+          ? partsData.data
+          : [];
+        setParts(list);
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          setExpensesError("Failed to load expenses.");
+        }
+      } finally {
+        setLoadingExpenses(false);
+      }
+    }
+
+    loadExpensesAndParts();
+
+    return () => {
+      controller.abort();
+    };
+  }, [canEdit, workOrder?.id, workOrder?.storeId]);
+
+  async function handleExpenseInvoiceUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setExpenseInvoiceUploading(true);
+    setExpensesError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("fileType", "invoice");
+
+      if (workOrder.storeId) {
+        formData.append("storeId", workOrder.storeId as string);
+      }
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to upload invoice file");
+      }
+
+      setExpenseInvoiceUrl(data.data.url);
+      // Use pathname as a storage key fallback
+      setExpenseInvoiceType(file.type || null);
+    } catch (err: any) {
+      setExpensesError(
+        err?.message || "Failed to upload invoice file. Please try again."
+      );
+    } finally {
+      setExpenseInvoiceUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  async function handleAddExpense(e: React.FormEvent) {
+    e.preventDefault();
+    setExpensesError(null);
+
+    if (!expenseDescription.trim()) {
+      setExpensesError("Expense description is required.");
+      return;
+    }
+    const amountValue = parseFloat(expenseAmount);
+    if (!Number.isFinite(amountValue) || amountValue <= 0) {
+      setExpensesError("Amount must be a positive number.");
+      return;
+    }
+
+    setSavingExpense(true);
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workOrderId: workOrder.id,
+          description: expenseDescription.trim(),
+          amount: amountValue,
+          category: expenseCategory || null,
+          partId: selectedPartId || null,
+          invoiceUrl: expenseInvoiceUrl,
+          invoiceType: expenseInvoiceType,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || (data && data.success === false)) {
+        setExpensesError(
+          data?.error || "Failed to add expense. Please try again."
+        );
+        return;
+      }
+
+      const created = data?.data;
+      if (created) {
+        setExpenses((prev) => [created, ...prev]);
+      } else {
+        // Fallback: reload list
+        const refreshRes = await fetch(
+          `/api/expenses?workOrderId=${encodeURIComponent(workOrder.id)}`
+        );
+        const refreshData = await refreshRes.json().catch(() => null);
+        if (
+          refreshRes.ok &&
+          refreshData &&
+          refreshData.success &&
+          Array.isArray(refreshData.data)
+        ) {
+          setExpenses(refreshData.data);
+        }
+      }
+
+      // Reset form
+      setExpenseDescription("");
+      setExpenseAmount("");
+      setSelectedPartId("");
+      setExpenseCategory("Parts");
+      setExpenseInvoiceUrl(null);
+      setExpenseInvoiceType(null);
+    } catch {
+      setExpensesError("Unexpected error while adding expense.");
+    } finally {
+      setSavingExpense(false);
+    }
+  }
 
   async function handleGenerateShare() {
     setGeneratingShare(true);
@@ -1063,6 +1246,182 @@ export default function WorkOrderDetails({
                     );
                   })
                 )}
+              </div>
+            </section>
+          )}
+
+          {/* Expenses card */}
+          {canViewExpenses && (
+            <section className="overflow-hidden rounded-lg bg-white shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <h3 className="text-base font-semibold text-slate-900">
+                  Expenses
+                </h3>
+              </div>
+              <div className="space-y-4 px-4 py-4">
+                {expensesError && (
+                  <p className="text-xs text-red-500">{expensesError}</p>
+                )}
+
+                {canEdit && (
+                  <form
+                    onSubmit={handleAddExpense}
+                    className="space-y-3 rounded-md bg-slate-50 p-3"
+                  >
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                          Description
+                        </label>
+                        <input
+                          type="text"
+                          value={expenseDescription}
+                          onChange={(e) =>
+                            setExpenseDescription(e.target.value)
+                          }
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          placeholder="e.g. Replacement fan motor"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                          Amount
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={expenseAmount}
+                          onChange={(e) => setExpenseAmount(e.target.value)}
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                          Category
+                        </label>
+                        <select
+                          value={expenseCategory}
+                          onChange={(e) => setExpenseCategory(e.target.value)}
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                          <option value="Parts">Parts</option>
+                          <option value="Labor">Labor</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                          Part (optional)
+                        </label>
+                        <select
+                          value={selectedPartId}
+                          onChange={(e) => setSelectedPartId(e.target.value)}
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        >
+                          <option value="">No specific part</option>
+                          {parts.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                              {p.partNumber ? ` (${p.partNumber})` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="cursor-pointer text-[11px] font-medium text-indigo-600 hover:text-indigo-700">
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={handleExpenseInvoiceUpload}
+                          disabled={expenseInvoiceUploading}
+                          className="hidden"
+                        />
+                        {expenseInvoiceUploading
+                          ? "Uploading invoice..."
+                          : "Attach invoice (jpg, png, pdf)"}
+                      </label>
+                      {expenseInvoiceUrl && (
+                        <a
+                          href={expenseInvoiceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[11px] text-slate-600 underline"
+                        >
+                          View attached invoice
+                        </a>
+                      )}
+                      <button
+                        type="submit"
+                        disabled={savingExpense}
+                        className="ml-auto inline-flex items-center rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {savingExpense ? "Saving…" : "Add Expense"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                <div className="border-t border-slate-200 pt-3">
+                  {loadingExpenses ? (
+                    <p className="text-xs text-slate-400">Loading expenses…</p>
+                  ) : expenses.length === 0 ? (
+                    <p className="text-xs text-slate-400">
+                      No expenses recorded for this work order yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {expenses.map((exp) => (
+                        <div
+                          key={exp.id}
+                          className="flex items-start justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                        >
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-slate-900">
+                              {exp.description}
+                            </p>
+                            <p className="text-[11px] text-slate-600">
+                              {exp.category || "Uncategorized"}
+                              {exp.part && (
+                                <>
+                                  {" · "}
+                                  Part: {exp.part.name}
+                                  {exp.part.partNumber
+                                    ? ` (${exp.part.partNumber})`
+                                    : ""}
+                                </>
+                              )}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              {new Date(exp.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-semibold text-slate-900">
+                              ${Number(exp.amount).toFixed(2)}
+                            </p>
+                            {exp.invoiceUrl && (
+                              <a
+                                href={exp.invoiceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-1 inline-block text-[11px] text-indigo-600 underline"
+                              >
+                                View invoice
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </section>
           )}

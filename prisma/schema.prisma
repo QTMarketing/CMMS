@@ -113,6 +113,8 @@ model WorkOrder {
   notes           Note[]
 
   transfers       Transfer[]
+  // Expenses linked to this work order
+  expenses        Expense[]
 }
 
 model Note {
@@ -131,6 +133,8 @@ model InventoryItem {
   quantityOnHand Int
   reorderThreshold Int
   location       String?
+  // Optional cost per unit (for expense calculations)
+  unitCost       Decimal? @db.Decimal(10, 2)
 
   // Multi-store: optional store that owns this inventory item.
   storeId String?
@@ -138,6 +142,7 @@ model InventoryItem {
 
   transfers     Transfer[]
   purchaseItems PurchaseOrderItem[]
+  expenses      Expense[]
 }
 
 model PurchaseOrder {
@@ -210,6 +215,7 @@ model User {
   // Work orders assigned to this user (backoffice/internal staff)
   assignedWorkOrders WorkOrder[] @relation("UserWorkOrders")
   transfers         Transfer[]
+  expenses          Expense[]
 }
 
 model Request {
@@ -251,6 +257,35 @@ model Transfer {
 
   asset         Asset?         @relation(fields: [assetId], references: [id])
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+}
+
+model Expense {
+  id            String   @id @default(cuid())
+
+  workOrderId   String?
+  workOrder     WorkOrder? @relation(fields: [workOrderId], references: [id])
+
+  storeId       String
+  store         Store   @relation(fields: [storeId], references: [id])
+
+  partId        String?
+  part          InventoryItem? @relation(fields: [partId], references: [id])
+
+  description   String
+  amount        Decimal @db.Decimal(10, 2)
+  category      String?   // e.g. "Parts", "Labor", "Other"
+
+  // Invoice file metadata (e.g. Blob/S3)
+  invoiceUrl    String?   // public URL stored here
+  invoiceKey    String?   // storage key for deletion
+  invoiceType   String?   // "image/jpeg", "image/png", "application/pdf"
+  uploadedAt    DateTime?
+
+  createdById   String
+  createdBy     User   @relation(fields: [createdById], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 // Division → District → Store hierarchy
@@ -300,6 +335,7 @@ model Store {
   transfersTo    Transfer[] @relation("TransferToStore")
   purchaseOrders PurchaseOrder[]
   categories     StoreCategory[]
+  expenses       Expense[]
 }
 
 model StoreCategory {

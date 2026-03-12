@@ -11,6 +11,7 @@ const allNavItems = [
   { name: "Preventive Maintenance Schedules", href: "/pm" },
   { name: "Requests", href: "/requests" },
   { name: "Locations", href: "/stores" },
+  { name: "Expenses", href: "/expenses" },
   { name: "Users", href: "/users" },
   { name: "Reports", href: "/reports" },
 ];
