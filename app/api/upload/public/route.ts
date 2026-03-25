@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate file type
+    // Note: Public form uploads may include invoices (PDF) and images/videos.
     const allowedTypes = [
       "image/jpeg",
       "image/jpg",
@@ -50,13 +52,17 @@ export async function POST(req: NextRequest) {
       "video/mpeg",
       "video/quicktime",
       "video/x-msvideo",
+      "application/pdf",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ];
 
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
         {
           success: false,
-          error: "Invalid file type. Only images and videos are allowed.",
+          error:
+            "Invalid file type. Allowed types: images, videos, PDF, and Excel.",
         },
         { status: 400 }
       );
@@ -70,22 +76,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 15);
     const extension = file.name.split(".").pop() || "bin";
     const filename = `${timestamp}-${randomStr}.${extension}`;
     const blobPath = `location/${store.id}/${fileType}/${filename}`;
 
-    const putOptions: { access: "public"; token?: string } = {
+    const putOptions: {
+      access: "public";
+      contentType?: string;
+      token?: string;
+    } = {
       access: "public",
+      contentType: file.type || "application/octet-stream",
     };
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       putOptions.token = process.env.BLOB_READ_WRITE_TOKEN;
     }
 
-    const blob = await put(blobPath, buffer, putOptions);
+    const blob = await put(blobPath, file, putOptions);
 
     return NextResponse.json(
       {
