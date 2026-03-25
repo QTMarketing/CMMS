@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { del } from "@vercel/blob";
 
 import { prisma } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
@@ -265,6 +266,29 @@ export async function PATCH(
   // Only admins can add invoices
   if (isAdmin && Object.prototype.hasOwnProperty.call(body, "invoices")) {
     if (Array.isArray(body.invoices)) {
+      // If invoices are being removed, attempt to delete the underlying blobs.
+      // This mirrors expense invoice cleanup and prevents orphan blob files.
+      const prevInvoices = Array.isArray(existing.invoices) ? existing.invoices : [];
+      const nextInvoices = body.invoices as string[];
+      const removed = prevInvoices.filter((u: any) => !nextInvoices.includes(u));
+
+      if (removed.length) {
+        await Promise.all(
+          removed.map(async (url: string) => {
+            if (!url) return;
+            try {
+              await del(url);
+            } catch (err) {
+              // Log but do not block the DB update
+              console.error(
+                "[workorders PATCH] Failed to delete invoice blob:",
+                err
+              );
+            }
+          })
+        );
+      }
+
       data.invoices = body.invoices;
     }
   }

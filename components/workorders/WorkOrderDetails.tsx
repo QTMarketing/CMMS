@@ -37,6 +37,9 @@ export default function WorkOrderDetails({
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [uploadingInvoices, setUploadingInvoices] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [deletingInvoiceUrl, setDeletingInvoiceUrl] = useState<string | null>(
+    null
+  );
   const [markingComplete, setMarkingComplete] = useState(false);
   const [markCompleteError, setMarkCompleteError] = useState<string | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -581,6 +584,58 @@ export default function WorkOrderDetails({
       setUploadingInvoices(false);
       // Reset input
       e.target.value = "";
+    }
+  }
+
+  async function handleDeleteInvoice(url: string) {
+    if (!url) return;
+
+    const ok = window.confirm("Delete this invoice? This cannot be undone.");
+    if (!ok) return;
+
+    setInvoiceError(null);
+    setDeletingInvoiceUrl(url);
+
+    const currentInvoices = Array.isArray(workOrder.invoices)
+      ? workOrder.invoices
+      : [];
+    const nextInvoices = currentInvoices.filter((u: string) => u !== url);
+
+    // Optimistic UI update
+    setWorkOrder((prev: any) => ({
+      ...prev,
+      invoices: nextInvoices,
+    }));
+
+    try {
+      const res = await fetch(`/api/workorders/${workOrder.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoices: nextInvoices,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || data.message || "Failed to delete invoice");
+      }
+
+      const updatedWorkOrder = data.data || data;
+      if (updatedWorkOrder && updatedWorkOrder.id) {
+        setWorkOrder(updatedWorkOrder);
+      } else {
+        await refreshWorkOrder();
+      }
+    } catch (err: any) {
+      // Roll back if API fails
+      setWorkOrder((prev: any) => ({
+        ...prev,
+        invoices: currentInvoices,
+      }));
+      setInvoiceError(err.message || "Failed to delete invoice");
+    } finally {
+      setDeletingInvoiceUrl(null);
     }
   }
 
@@ -1240,6 +1295,17 @@ export default function WorkOrderDetails({
                             >
                               <span className="text-sm">↓</span>
                             </a>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteInvoice(url)}
+                              disabled={deletingInvoiceUrl === url}
+                              className="rounded-full p-2 hover:bg-red-50 text-red-600 disabled:opacity-60"
+                              title="Delete invoice"
+                            >
+                              <span className="text-sm">
+                                {deletingInvoiceUrl === url ? "…" : "🗑"}
+                              </span>
+                            </button>
                           </div>
                         )}
                       </div>
